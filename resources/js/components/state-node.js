@@ -3,7 +3,6 @@ var _ = require('lodash');
 var StateNode = React.createClass({
 
   render: function() {
-    console.log('foo', this.props);
     var statements = _.map(this.props.statements, function(statement) {
       return (
         <tr key={statement.condition} className="code">

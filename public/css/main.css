@@ -6062,9 +6062,15 @@ button.close {
 .title {
   font-size: 48px; }
 
-.state-node .name {
-  font-size: 24px; }
+.state-node-container {
+  position: absolute; }
 
-.state-node .statements {
-  font-size: 16px;
-  font-family: monospace; }
+.state-node {
+  padding: 10px;
+  max-width: 400px;
+  border: 1px solid gray; }
+  .state-node .name {
+    font-size: 24px; }
+  .state-node .statements {
+    font-size: 16px;
+    font-family: monospace; }

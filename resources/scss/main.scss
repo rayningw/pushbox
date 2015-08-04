@@ -4,7 +4,15 @@
   font-size: 48px;
 }
 
+.state-node-container {
+  position: absolute;
+}
+
 .state-node {
+
+  padding: 10px;
+  max-width: 400px;
+  border: 1px solid gray;
 
   .name {
     font-size: 24px;

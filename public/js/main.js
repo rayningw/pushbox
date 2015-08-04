@@ -13436,7 +13436,8 @@ var App = React.createClass({displayName: "App",
   getInitialState: function() {
     return {
       title: 'Pushybox',
-      program: this.props.newProgram
+      program: this.props.newProgram,
+      layout: this.props.newLayout
     }
   },
 
@@ -13455,7 +13456,7 @@ var App = React.createClass({displayName: "App",
         ), 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12"}, 
-            React.createElement(StateSet, {states: this.state.program.states})
+            React.createElement(StateSet, {states: this.state.program.states, layout: this.state.program.layout})
           )
         )
       )
@@ -13472,7 +13473,6 @@ var _ = require('lodash');
 var StateNode = React.createClass({displayName: "StateNode",
 
   render: function() {
-    console.log('foo', this.props);
     var statements = _.map(this.props.statements, function(statement) {
       return (
         React.createElement("tr", {key: statement.condition, className: "code"}, 
@@ -13510,15 +13510,56 @@ var StateNode = require('./state-node');
 
 var StateSet = React.createClass({displayName: "StateSet",
 
+  getInitialState: function() {
+    return {
+      positions: this.props.layout.positions
+    };
+  },
+
   render: function() {
+    var that = this;
     var stateNodes = _.map(this.props.states, function(state) {
+      var position = this.state.positions[state.name];
+      var style = { left: position.x, top: position.y };
+
+      var startX;
+      var startY;
+
+      // The screenX co-ordinate on the dragend event was a strange number, so we record the latest
+      // co-ordinates on drag
+      var lastMouseX;
+      var lastMouseY;
+
+      function onDrag(event) {
+        // A (0,0) event fires just before dragend
+        if (!(event.screenX === 0 && event.screenY === 0)) {
+          lastMouseX = event.screenX;
+          lastMouseY = event.screenY;
+        }
+      }
+
+      function onDragStart(event) {
+        startX = event.screenX;
+        startY = event.screenY;
+        lastMouseX = event.screenX;
+        lastMouseY = event.screenY;
+      }
+
+      function onDragEnd(event) {
+        var newX = position.x + lastMouseX - startX;
+        var newY = position.y + lastMouseY - startY;
+        var newPositions = that.state.positions;
+        newPositions[state.name] = { x: newX, y: newY };
+        that.setState({ positions: newPositions });
+      }
+
       return (
-        React.createElement("div", {key: state.name}, 
-          React.createElement(StateNode, {name: state.name, statements: state.statements}), 
-          React.createElement("hr", null)
+        React.createElement("div", {key: state.name, className: "state-node-container", style: style, draggable: "true", 
+             onDrag: onDrag, onDragStart: onDragStart, onDragEnd: onDragEnd}, 
+          React.createElement(StateNode, {name: state.name, statements: state.statements})
         )
       );
-    });
+    }.bind(this));
 
     return (
       React.createElement("div", null, 
@@ -13565,7 +13606,14 @@ exports.newProgram = {
         statement('4"', [ 'ON ^Laser' ], 'S1')
       ]
     }
-  ]
+  ],
+  layout: {
+    positions: {
+      'S0': { x: 0, y: 0 },
+      'S1': { x: 50, y: 50},
+      'S2': { x: 100, y: 100}
+    }
+  }
 };
 
 function statement(condition, actions, transition) {

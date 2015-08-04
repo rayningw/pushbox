@@ -28,7 +28,14 @@ exports.newProgram = {
         statement('4"', [ 'ON ^Laser' ], 'S1')
       ]
     }
-  ]
+  ],
+  layout: {
+    positions: {
+      'S0': { x: 0, y: 0 },
+      'S1': { x: 50, y: 50},
+      'S2': { x: 100, y: 100}
+    }
+  }
 };
 
 function statement(condition, actions, transition) {
