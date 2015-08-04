@@ -2,8 +2,6 @@ var Draggable = React.createClass({
 
   getInitialState: function() {
     return {
-      x: this.props.x,
-      y: this.props.y
     };
   },
 
@@ -32,13 +30,14 @@ var Draggable = React.createClass({
   },
 
   onDragEnd: function(event) {
-    var newX = this.state.x + this.lastMouseX - this.startX;
-    var newY = this.state.y + this.lastMouseY - this.startY;
-    this.setState({ x: newX, y: newY });
+    var newX = this.props.x + this.lastMouseX - this.startX;
+    var newY = this.props.y + this.lastMouseY - this.startY;
+    console.log('notifying drag complete:', newX, newY);
+    this.props.onDragComplete(newX, newY);
   },
 
   render: function() {
-    var style = { left: this.state.x, top: this.state.y };
+    var style = { left: this.props.x, top: this.props.y };
 
     return (
       <div className="draggable-container" draggable="true" style={style}

@@ -13436,9 +13436,14 @@ var App = React.createClass({displayName: "App",
   getInitialState: function() {
     return {
       title: 'Pushybox',
-      program: this.props.newProgram,
-      layout: this.props.newLayout
+      name: this.props.newProgram.name,
+      states: this.props.newProgram.states,
+      layout: this.props.newProgram.layout
     }
+  },
+
+  onLayoutUpdated: function(layout) {
+    this.setState({ layout: layout });
   },
 
   render: function() {
@@ -13451,12 +13456,14 @@ var App = React.createClass({displayName: "App",
         ), 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12 title"}, 
-            this.state.program.name
+            this.state.name
           )
         ), 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12"}, 
-            React.createElement(StateSet, {states: this.state.program.states, layout: this.state.program.layout})
+            React.createElement(StateSet, {states: this.state.states, 
+                      layout: this.state.layout, 
+                      onLayoutUpdated: this.onLayoutUpdated})
           )
         )
       )
@@ -13472,8 +13479,6 @@ var Draggable = React.createClass({displayName: "Draggable",
 
   getInitialState: function() {
     return {
-      x: this.props.x,
-      y: this.props.y
     };
   },
 
@@ -13502,13 +13507,14 @@ var Draggable = React.createClass({displayName: "Draggable",
   },
 
   onDragEnd: function(event) {
-    var newX = this.state.x + this.lastMouseX - this.startX;
-    var newY = this.state.y + this.lastMouseY - this.startY;
-    this.setState({ x: newX, y: newY });
+    var newX = this.props.x + this.lastMouseX - this.startX;
+    var newY = this.props.y + this.lastMouseY - this.startY;
+    console.log('notifying drag complete:', newX, newY);
+    this.props.onDragComplete(newX, newY);
   },
 
   render: function() {
-    var style = { left: this.state.x, top: this.state.y };
+    var style = { left: this.props.x, top: this.props.y };
 
     return (
       React.createElement("div", {className: "draggable-container", draggable: "true", style: style, 
@@ -13569,16 +13575,22 @@ var StateSet = React.createClass({displayName: "StateSet",
 
   getInitialState: function() {
     return {
-      positions: this.props.layout.positions
     };
+  },
+
+  onPositionUpdated: function(name, x, y) {
+    var newLayout = _.clone(this.props.layout, true);
+    newLayout.positions[name] = { x: x, y: y };
+    this.props.onLayoutUpdated(newLayout);
   },
 
   render: function() {
     var stateNodes = _.map(this.props.states, function(state) {
-      var position = this.state.positions[state.name];
+      var position = this.props.layout.positions[state.name];
 
       return (
-        React.createElement(Draggable, {key: state.name, x: position.x, y: position.y}, 
+        React.createElement(Draggable, {key: state.name, x: position.x, y: position.y, 
+                   onDragComplete: _.partial(this.onPositionUpdated, [state.name])}, 
           React.createElement(StateNode, {name: state.name, statements: state.statements})
         )
       );

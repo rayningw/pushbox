@@ -5,9 +5,14 @@ var App = React.createClass({
   getInitialState: function() {
     return {
       title: 'Pushybox',
-      program: this.props.newProgram,
-      layout: this.props.newLayout
+      name: this.props.newProgram.name,
+      states: this.props.newProgram.states,
+      layout: this.props.newProgram.layout
     }
+  },
+
+  onLayoutUpdated: function(layout) {
+    this.setState({ layout: layout });
   },
 
   render: function() {
@@ -20,12 +25,14 @@ var App = React.createClass({
         </div>
         <div className="row">
           <div className="col-md-12 title">
-            {this.state.program.name}
+            {this.state.name}
           </div>
         </div>
         <div className="row">
           <div className="col-md-12">
-            <StateSet states={this.state.program.states} layout={this.state.program.layout} />
+            <StateSet states={this.state.states}
+                      layout={this.state.layout}
+                      onLayoutUpdated={this.onLayoutUpdated} />
           </div>
         </div>
       </div>
