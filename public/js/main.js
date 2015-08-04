@@ -13467,7 +13467,63 @@ var App = React.createClass({displayName: "App",
 
 module.exports = App;
 
-},{"./state-set":9}],8:[function(require,module,exports){
+},{"./state-set":10}],8:[function(require,module,exports){
+var Draggable = React.createClass({displayName: "Draggable",
+
+  getInitialState: function() {
+    return {
+      x: this.props.x,
+      y: this.props.y
+    };
+  },
+
+  startX: 0,
+  startY: 0,
+
+  // The screenX co-ordinate on the dragend event was a strange number, so we record the latest
+  // co-ordinates on drag
+  lastMouseX: 0,
+  lastMouseY: 0,
+
+  onDrag: function(event) {
+    // A (0,0) event fires just before dragend
+    if (event.screenX === 0 && event.screenY === 0) {
+      return;
+    }
+    this.lastMouseX = event.screenX;
+    this.lastMouseY = event.screenY;
+  },
+
+  onDragStart: function(event) {
+    this.startX = event.screenX;
+    this.startY = event.screenY;
+    this.lastMouseX = event.screenX;
+    this.lastMouseY = event.screenY;
+  },
+
+  onDragEnd: function(event) {
+    var newX = this.state.x + this.lastMouseX - this.startX;
+    var newY = this.state.y + this.lastMouseY - this.startY;
+    this.setState({ x: newX, y: newY });
+  },
+
+  render: function() {
+    var style = { left: this.state.x, top: this.state.y };
+
+    return (
+      React.createElement("div", {className: "draggable-container", draggable: "true", style: style, 
+           onDrag: this.onDrag, onDragStart: this.onDragStart, onDragEnd: this.onDragEnd}, 
+        this.props.children
+      )
+    );
+
+  }
+
+});
+
+module.exports = Draggable;
+
+},{}],9:[function(require,module,exports){
 var _ = require('lodash');
 
 var StateNode = React.createClass({displayName: "StateNode",
@@ -13503,9 +13559,10 @@ var StateNode = React.createClass({displayName: "StateNode",
 
 module.exports = StateNode;
 
-},{"lodash":6}],9:[function(require,module,exports){
+},{"lodash":6}],10:[function(require,module,exports){
 var _ = require('lodash');
 
+var Draggable = require('./draggable');
 var StateNode = require('./state-node');
 
 var StateSet = React.createClass({displayName: "StateSet",
@@ -13517,45 +13574,11 @@ var StateSet = React.createClass({displayName: "StateSet",
   },
 
   render: function() {
-    var that = this;
     var stateNodes = _.map(this.props.states, function(state) {
       var position = this.state.positions[state.name];
-      var style = { left: position.x, top: position.y };
-
-      var startX;
-      var startY;
-
-      // The screenX co-ordinate on the dragend event was a strange number, so we record the latest
-      // co-ordinates on drag
-      var lastMouseX;
-      var lastMouseY;
-
-      function onDrag(event) {
-        // A (0,0) event fires just before dragend
-        if (!(event.screenX === 0 && event.screenY === 0)) {
-          lastMouseX = event.screenX;
-          lastMouseY = event.screenY;
-        }
-      }
-
-      function onDragStart(event) {
-        startX = event.screenX;
-        startY = event.screenY;
-        lastMouseX = event.screenX;
-        lastMouseY = event.screenY;
-      }
-
-      function onDragEnd(event) {
-        var newX = position.x + lastMouseX - startX;
-        var newY = position.y + lastMouseY - startY;
-        var newPositions = that.state.positions;
-        newPositions[state.name] = { x: newX, y: newY };
-        that.setState({ positions: newPositions });
-      }
 
       return (
-        React.createElement("div", {key: state.name, className: "state-node-container", style: style, draggable: "true", 
-             onDrag: onDrag, onDragStart: onDragStart, onDragEnd: onDragEnd}, 
+        React.createElement(Draggable, {key: state.name, x: position.x, y: position.y}, 
           React.createElement(StateNode, {name: state.name, statements: state.statements})
         )
       );
@@ -13575,7 +13598,7 @@ var StateSet = React.createClass({displayName: "StateSet",
 
 module.exports = StateSet;
 
-},{"./state-node":8,"lodash":6}],10:[function(require,module,exports){
+},{"./draggable":8,"./state-node":9,"lodash":6}],11:[function(require,module,exports){
 'use strict';
 
 var assert = require('assert');
@@ -13628,7 +13651,7 @@ function statement(condition, actions, transition) {
   }
 }
 
-},{"assert":1}],11:[function(require,module,exports){
+},{"assert":1}],12:[function(require,module,exports){
 'use strict';
 
 var config = require('./config/config');
@@ -13648,4 +13671,4 @@ else {
   window.attachEvent('onload', run);
 }
 
-},{"./components/app":7,"./config/config":10}]},{},[11]);
+},{"./components/app":7,"./config/config":11}]},{},[12]);

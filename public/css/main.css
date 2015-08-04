@@ -6062,7 +6062,7 @@ button.close {
 .title {
   font-size: 48px; }
 
-.state-node-container {
+.draggable-container {
   position: absolute; }
 
 .state-node {
