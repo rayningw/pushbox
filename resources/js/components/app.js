@@ -9,7 +9,7 @@ var App = React.createClass({
   render: function() {
     return (
       <div id="app">
-        <div>
+        <div className="title">
           {this.state.title}
         </div>
         <div>

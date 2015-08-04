@@ -11,6 +11,7 @@
   "devDependencies": {
     "browserify": "^11.0.1",
     "gulp": "^3.9.0",
+    "gulp-sass": "^2.0.4",
     "reactify": "^1.1.1",
     "vinyl-source-stream": "^1.1.0",
     "watchify": "^3.3.1"
@@ -18,6 +19,5 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Ray Wu <rayning.wu@gmail.com>",
-  "license": "TBD"
+  "author": "Ray Wu <rayning.wu@gmail.com>"
 }
