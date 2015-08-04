@@ -1,0 +1,23 @@
+{
+  "name": "pushybox",
+  "version": "0.0.1",
+  "authors": [
+    "Ray Wu <rayning.wu@gmail.com>"
+  ],
+  "description": "Experimental behavioural research app",
+  "main": "app.js",
+  "moduleType": [
+    "node"
+  ],
+  "license": "TBD",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "react": "~0.13.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "continuation-local-storage": "^3.1.4",
+    "express": "^4.13.3",
+    "lodash": "^3.10.0"
+  },
+  "name": "pushybox",
+  "version": "0.0.1",
+  "description": "Experimental behavioural research app",
+  "main": "app.js",
+  "devDependencies": {
+    "browserify": "^11.0.1",
+    "gulp": "^3.9.0",
+    "reactify": "^1.1.1",
+    "vinyl-source-stream": "^1.1.0",
+    "watchify": "^3.3.1"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ray Wu <rayning.wu@gmail.com>",
+  "license": "TBD"
+}
