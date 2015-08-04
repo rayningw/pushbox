@@ -6065,6 +6065,6 @@ button.close {
 .state-node .name {
   font-size: 24px; }
 
-.state-node .code {
+.state-node .statements {
   font-size: 16px;
   font-family: monospace; }

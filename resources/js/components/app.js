@@ -1,25 +1,32 @@
-var StateDiagram = require('./state-diagram');
+var StateSet = require('./state-set');
 
 var App = React.createClass({
 
   getInitialState: function() {
     return {
       title: 'Pushybox',
-      states: [
-        { name: 'S0', code: 'PRINT "HELLO"' },
-        { name: 'S1', code: 'SET A(5)=0;' },
-        { name: 'S2', code: 'SET A(6)=0;' }
-      ]
+      program: this.props.newProgram
     }
   },
 
   render: function() {
     return (
-      <div>
-        <div className="title">
-          {this.state.title}
+      <div className="container">
+        <div className="row">
+          <div className="col-md-12">
+            <h1>Pushybox</h1>
+          </div>
         </div>
-        <StateDiagram states={this.state.states} />
+        <div className="row">
+          <div className="col-md-12 title">
+            {this.state.program.name}
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-md-12">
+            <StateSet states={this.state.program.states} />
+          </div>
+        </div>
       </div>
     );
   }

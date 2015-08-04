@@ -2,13 +2,13 @@ var _ = require('lodash');
 
 var StateNode = require('./state-node');
 
-var StateDiagram = React.createClass({
+var StateSet = React.createClass({
 
   render: function() {
     var stateNodes = _.map(this.props.states, function(state) {
       return (
         <div key={state.name}>
-          <StateNode name={state.name} code={state.code} />
+          <StateNode name={state.name} statements={state.statements} />
           <hr />
         </div>
       );
@@ -26,4 +26,4 @@ var StateDiagram = React.createClass({
 
 });
 
-module.exports = StateDiagram;
+module.exports = StateSet;

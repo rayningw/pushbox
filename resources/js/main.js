@@ -5,7 +5,7 @@ var App = require('./components/app');
 
 function run() {
   React.render(
-    <App message={config.message} />,
+    <App newProgram={config.newProgram} />,
     document.getElementById('content')
   );
 }

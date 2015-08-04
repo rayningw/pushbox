@@ -18,6 +18,10 @@ bundler.transform(reactify);
 function bundle() {
   console.log('Bundling JS...');
   return bundler.bundle()
+    .on('error', function (err) {
+        console.log(err.toString());
+        this.emit('end');
+    })
     .pipe(source('main.js'))
     .pipe(gulp.dest(config.publicPath + '/js'));
 }
