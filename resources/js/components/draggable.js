@@ -8,25 +8,25 @@ var Draggable = React.createClass({
   startX: 0,
   startY: 0,
 
-  // The screenX co-ordinate on the dragend event was a strange number, so we record the latest
+  // The clientX co-ordinate on the dragend event was a strange number, so we record the latest
   // co-ordinates on drag
   lastMouseX: 0,
   lastMouseY: 0,
 
   onDrag: function(event) {
     // A (0,0) event fires just before dragend
-    if (event.screenX === 0 && event.screenY === 0) {
+    if (event.clientX === 0 && event.clientY === 0) {
       return;
     }
-    this.lastMouseX = event.screenX;
-    this.lastMouseY = event.screenY;
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
   },
 
   onDragStart: function(event) {
-    this.startX = event.screenX;
-    this.startY = event.screenY;
-    this.lastMouseX = event.screenX;
-    this.lastMouseY = event.screenY;
+    this.startX = event.clientX;
+    this.startY = event.clientY;
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
   },
 
   onDragEnd: function(event) {

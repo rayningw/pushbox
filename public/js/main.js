@@ -13521,7 +13521,24 @@ var App = React.createClass({displayName: "App",
 
 module.exports = App;
 
-},{"./state-set":10,"assert":1}],8:[function(require,module,exports){
+},{"./state-set":11,"assert":1}],8:[function(require,module,exports){
+var Arrow = React.createClass({displayName: "Arrow",
+
+  render: function() {
+    return (
+      React.createElement("path", {d: "M " + this.props.from.x + " " + this.props.from.y +
+               " L " + this.props.to.x + " " + this.props.to.y, 
+            fill: "none", stroke: "#6666ff", strokeWidth: "1px", 
+            markerStart: "url(#markerCircle)", 
+            markerEnd: "url(#markerArrow)"})
+    );
+  }
+
+});
+
+module.exports = Arrow;
+
+},{}],9:[function(require,module,exports){
 var Draggable = React.createClass({displayName: "Draggable",
 
   getInitialState: function() {
@@ -13532,25 +13549,25 @@ var Draggable = React.createClass({displayName: "Draggable",
   startX: 0,
   startY: 0,
 
-  // The screenX co-ordinate on the dragend event was a strange number, so we record the latest
+  // The clientX co-ordinate on the dragend event was a strange number, so we record the latest
   // co-ordinates on drag
   lastMouseX: 0,
   lastMouseY: 0,
 
   onDrag: function(event) {
     // A (0,0) event fires just before dragend
-    if (event.screenX === 0 && event.screenY === 0) {
+    if (event.clientX === 0 && event.clientY === 0) {
       return;
     }
-    this.lastMouseX = event.screenX;
-    this.lastMouseY = event.screenY;
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
   },
 
   onDragStart: function(event) {
-    this.startX = event.screenX;
-    this.startY = event.screenY;
-    this.lastMouseX = event.screenX;
-    this.lastMouseY = event.screenY;
+    this.startX = event.clientX;
+    this.startY = event.clientY;
+    this.lastMouseX = event.clientX;
+    this.lastMouseY = event.clientY;
   },
 
   onDragEnd: function(event) {
@@ -13575,15 +13592,42 @@ var Draggable = React.createClass({displayName: "Draggable",
 
 module.exports = Draggable;
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 var _ = require('lodash');
 
 var StateNode = React.createClass({displayName: "StateNode",
 
+  statementBoundingRects: {},
+
+  updateStatementBoundingRects: function() {
+    this.statementBoundingRects =
+       _.chain(this.props.statements)
+        .indexBy('condition')
+        .mapValues(function(statement) {
+          var domRect = React.findDOMNode(this.refs[statement.condition]).getBoundingClientRect();
+          return { from: { x: domRect.left, y: domRect.top },
+                   to:   { x: domRect.right, y: domRect.bottom } };
+        }.bind(this))
+        .value();
+  },
+
+  componentDidMount: function() {
+    this.updateStatementBoundingRects();
+  },
+
+  componentDidUpdate: function() {
+    this.updateStatementBoundingRects();
+  },
+
+  // Returns the bounding rect of the statement identified by its condition
+  getStatementBoundingRect: function(condition) {
+    return this.statementBoundingRects[condition];
+  },
+
   render: function() {
     var statements = _.map(this.props.statements, function(statement) {
       return (
-        React.createElement("tr", {key: statement.condition, className: "code"}, 
+        React.createElement("tr", {key: statement.condition, ref: statement.condition, className: "code"}, 
           React.createElement("td", null, statement.condition), 
           React.createElement("td", null, statement.actions), 
           React.createElement("td", null, statement.transition)
@@ -13611,17 +13655,51 @@ var StateNode = React.createClass({displayName: "StateNode",
 
 module.exports = StateNode;
 
-},{"lodash":6}],10:[function(require,module,exports){
+},{"lodash":6}],11:[function(require,module,exports){
+var assert = require('assert');
 var _ = require('lodash');
 
 var Draggable = require('./draggable');
 var StateNode = require('./state-node');
+var Arrow = require('./arrow');
 
 var StateSet = React.createClass({displayName: "StateSet",
 
   getInitialState: function() {
     return {
+      arrows: []
     };
+  },
+
+  updateArrows: function() {
+    var arrows = [];
+    _.forEach(this.props.states, function(state) {
+      var stateNodeElem = this.refs[state.name];
+
+      if (!stateNodeElem) {
+        console.log('No state nodes rendered yet');
+        return;
+      }
+
+      _.forEach(state.statements, function(statement, idx) {
+        var fromRect = stateNodeElem.getStatementBoundingRect(statement.condition);
+        var toPoint = this.props.layout.positions[statement.transition];
+
+        if (_.isUndefined(fromRect) || _.isUndefined(toPoint)) {
+          return;
+        }
+
+        var svgCanvasRect = React.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
+        var from = { x: fromRect.to.x - svgCanvasRect.left, y: fromRect.to.y - svgCanvasRect.top};
+        var to = toPoint;
+
+        arrows.push({ key: state.name + ',' + statement.condition, from: from, to: to });
+      }.bind(this));
+    }.bind(this));
+
+    if (!_.isEqual(arrows, this.state.arrows)) {
+      this.setState({ arrows: arrows });
+    }
   },
 
   onPositionUpdated: function(name, x, y) {
@@ -13630,33 +13708,79 @@ var StateSet = React.createClass({displayName: "StateSet",
     this.props.onLayoutUpdated(newLayout);
   },
 
-  render: function() {
-    var stateNodes = _.map(this.props.states, function(state) {
+  makeStateNodes: function() {
+    return _.map(this.props.states, function(state) {
       var position = this.props.layout.positions[state.name];
 
       return (
         React.createElement(Draggable, {key: state.name, x: position.x, y: position.y, 
                    onDragComplete: _.partial(this.onPositionUpdated, [state.name])}, 
-          React.createElement(StateNode, {name: state.name, statements: state.statements})
+          React.createElement(StateNode, {ref: state.name, name: state.name, statements: state.statements})
         )
       );
     }.bind(this));
+  },
+
+  render: function() {
+    var stateNodes = this.makeStateNodes();
+    var arrows = _.map(this.state.arrows, function(arrow) {
+      return (
+        React.createElement(Arrow, {key: arrow.key, from: arrow.from, to: arrow.to})
+      );
+    });
 
     return (
       React.createElement("div", null, 
         React.createElement("div", {className: "title"}, "State Diagram"), 
-        React.createElement("div", null, 
-          stateNodes
+        React.createElement("div", {className: "combined-canvas"}, 
+          React.createElement("div", {className: "html-canvas"}, 
+            stateNodes
+          ), 
+          React.createElement("svg", {ref: "svgCanvas", className: "svg-canvas"}, 
+            React.createElement("defs", null, 
+              React.createElement("marker", {ref: "markerCircle", id: "markerCircle"}, 
+                React.createElement("circle", {cx: "5", cy: "5", r: "3", stroke: "none", fill: "black"})
+              ), 
+
+              React.createElement("marker", {ref: "markerArrow", id: "markerArrow"}, 
+                React.createElement("path", {d: "M2,2 L2,11 L10,6 L2,2", fill: "black"})
+              )
+            ), 
+            arrows
+          )
         )
       )
     );
+  },
+
+  componentDidMount: function() {
+    // Set attributes unsupported by React
+    // https://github.com/facebook/react/issues/140
+    var markerCircle = this.refs.markerCircle.getDOMNode();
+    markerCircle.setAttribute('markerWidth', '8');
+    markerCircle.setAttribute('markerHeight', '8');
+    markerCircle.setAttribute('refX', '5');
+    markerCircle.setAttribute('refY', '5');
+
+    var markerArrow = this.refs.markerArrow.getDOMNode();
+    markerArrow.setAttribute('markerWidth', '13');
+    markerArrow.setAttribute('markerHeight', '13');
+    markerArrow.setAttribute('refX', '2');
+    markerArrow.setAttribute('refY', '6');
+    markerArrow.setAttribute('orient', 'auto');
+
+    this.updateArrows();
+  },
+
+  componentDidUpdate: function() {
+    this.updateArrows();
   }
 
 });
 
 module.exports = StateSet;
 
-},{"./draggable":8,"./state-node":9,"lodash":6}],11:[function(require,module,exports){
+},{"./arrow":8,"./draggable":9,"./state-node":10,"assert":1,"lodash":6}],12:[function(require,module,exports){
 'use strict';
 
 var assert = require('assert');
@@ -13709,7 +13833,7 @@ function statement(condition, actions, transition) {
   }
 }
 
-},{"assert":1}],12:[function(require,module,exports){
+},{"assert":1}],13:[function(require,module,exports){
 'use strict';
 
 var config = require('./config/config');
@@ -13729,4 +13853,4 @@ else {
   window.attachEvent('onload', run);
 }
 
-},{"./components/app":7,"./config/config":11}]},{},[12]);
+},{"./components/app":7,"./config/config":12}]},{},[13]);
