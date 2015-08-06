@@ -24,24 +24,45 @@ var StateSet = React.createClass({
       }
 
       _.forEach(state.statements, function(statement, idx) {
-        var fromRect = stateNodeElem.getStatementBoundingRect(statement.condition);
-        var toPoint = this.props.layout.positions[statement.transition];
-
-        if (_.isUndefined(fromRect) || _.isUndefined(toPoint)) {
-          return;
-        }
+        var fromCandidates = stateNodeElem.getStatementConnectionPoints(statement.condition);
+        var toCandidates = this.refs[statement.transition].getStateConnectionPoints();
 
         var svgCanvasRect = React.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
-        var from = { x: fromRect.to.x - svgCanvasRect.left, y: fromRect.to.y - svgCanvasRect.top};
-        var to = toPoint;
+        var shortestArrow = this.calcShortestArrow(fromCandidates, toCandidates);
+        var shift = { x: -svgCanvasRect.left, y: -svgCanvasRect.top };
 
-        arrows.push({ key: state.name + ',' + statement.condition, from: from, to: to });
+        arrows.push({ key:  state.name + ',' + statement.condition,
+                      from: this.shiftCoord(shortestArrow.from, shift),
+                      to:   this.shiftCoord(shortestArrow.to, shift) });
       }.bind(this));
     }.bind(this));
 
     if (!_.isEqual(arrows, this.state.arrows)) {
       this.setState({ arrows: arrows });
     }
+  },
+
+  shiftCoord: function(coord, shift) {
+    return { x: coord.x + shift.x, y: coord.y + shift.y };
+  },
+
+  // Returns the shortest arrow between a set of "from" candidate points and set of "to" candidates
+  calcShortestArrow: function(fromCandidates, toCandidates) {
+    assert(fromCandidates.length > 0);
+    assert(toCandidates.length > 0);
+
+    var shortest = { distance: Number.POSITIVE_INFINITY };
+    _.forEach(fromCandidates, function(from) {
+      _.forEach(toCandidates, function(to) {
+        var distance = (to.x - from.x) * (to.x - from.x) + (to.y - from.y) * (to.y - from.y);
+        if (distance < shortest.distance) {
+          shortest = { distance: distance, from: from, to: to };
+        }
+      });
+    });
+
+    assert(shortest.from);
+    return shortest;
   },
 
   onPositionUpdated: function(name, x, y) {

@@ -13597,31 +13597,61 @@ var _ = require('lodash');
 
 var StateNode = React.createClass({displayName: "StateNode",
 
-  statementBoundingRects: {},
+  // Connection points for the statement boxes, indexed by condition name
+  statementConnectionPoints: {},
 
-  updateStatementBoundingRects: function() {
-    this.statementBoundingRects =
+  // Connection points for the entire state box
+  stateConnectionPoints: [],
+
+  updateConnectionPoints: function() {
+    this.updateStateConnectionPoints();
+    this.updateStatementConnectionPoints();
+  },
+
+  updateStatementConnectionPoints: function() {
+    this.statementConnectionPoints =
        _.chain(this.props.statements)
         .indexBy('condition')
         .mapValues(function(statement) {
-          var domRect = React.findDOMNode(this.refs[statement.condition]).getBoundingClientRect();
-          return { from: { x: domRect.left, y: domRect.top },
-                   to:   { x: domRect.right, y: domRect.bottom } };
+          var rect = React.findDOMNode(this.refs[statement.condition]).getBoundingClientRect();
+          var halfwayY = (rect.top + rect.bottom) / 2;
+          return [
+            { x: rect.left,  y: halfwayY },
+            { x: rect.right, y: halfwayY }
+          ];
         }.bind(this))
         .value();
   },
 
+  updateStateConnectionPoints: function() {
+    var nameRect = this.refs.name.getDOMNode().getBoundingClientRect();
+    var entireRect = this.getDOMNode().getBoundingClientRect();
+
+    var nameHalfwayY = (nameRect.top + nameRect.bottom) / 2;
+    var entireHalfwayX = (entireRect.left + entireRect.right) / 2;
+
+    this.stateConnectionPoints = [
+      { x: entireRect.left,  y: nameHalfwayY },
+      { x: entireRect.right, y: nameHalfwayY },
+      { x: entireHalfwayX, y: entireRect.top },
+      { x: entireHalfwayX, y: entireRect.bottom }
+    ];
+  },
+
   componentDidMount: function() {
-    this.updateStatementBoundingRects();
+    this.updateConnectionPoints();
   },
 
   componentDidUpdate: function() {
-    this.updateStatementBoundingRects();
+    this.updateConnectionPoints();
   },
 
-  // Returns the bounding rect of the statement identified by its condition
-  getStatementBoundingRect: function(condition) {
-    return this.statementBoundingRects[condition];
+  getStatementConnectionPoints: function(condition) {
+    return this.statementConnectionPoints[condition];
+  },
+
+  getStateConnectionPoints: function() {
+    return this.stateConnectionPoints;
   },
 
   render: function() {
@@ -13636,7 +13666,7 @@ var StateNode = React.createClass({displayName: "StateNode",
     });
     return (
       React.createElement("div", {className: "state-node"}, 
-        React.createElement("div", {className: "name"}, this.props.name), 
+        React.createElement("div", {ref: "name", className: "name"}, this.props.name), 
         React.createElement("table", {className: "table statements"}, 
           React.createElement("thead", null, 
             React.createElement("tr", null, 
@@ -13682,24 +13712,45 @@ var StateSet = React.createClass({displayName: "StateSet",
       }
 
       _.forEach(state.statements, function(statement, idx) {
-        var fromRect = stateNodeElem.getStatementBoundingRect(statement.condition);
-        var toPoint = this.props.layout.positions[statement.transition];
-
-        if (_.isUndefined(fromRect) || _.isUndefined(toPoint)) {
-          return;
-        }
+        var fromCandidates = stateNodeElem.getStatementConnectionPoints(statement.condition);
+        var toCandidates = this.refs[statement.transition].getStateConnectionPoints();
 
         var svgCanvasRect = React.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
-        var from = { x: fromRect.to.x - svgCanvasRect.left, y: fromRect.to.y - svgCanvasRect.top};
-        var to = toPoint;
+        var shortestArrow = this.calcShortestArrow(fromCandidates, toCandidates);
+        var shift = { x: -svgCanvasRect.left, y: -svgCanvasRect.top };
 
-        arrows.push({ key: state.name + ',' + statement.condition, from: from, to: to });
+        arrows.push({ key:  state.name + ',' + statement.condition,
+                      from: this.shiftCoord(shortestArrow.from, shift),
+                      to:   this.shiftCoord(shortestArrow.to, shift) });
       }.bind(this));
     }.bind(this));
 
     if (!_.isEqual(arrows, this.state.arrows)) {
       this.setState({ arrows: arrows });
     }
+  },
+
+  shiftCoord: function(coord, shift) {
+    return { x: coord.x + shift.x, y: coord.y + shift.y };
+  },
+
+  // Returns the shortest arrow between a set of "from" candidate points and set of "to" candidates
+  calcShortestArrow: function(fromCandidates, toCandidates) {
+    assert(fromCandidates.length > 0);
+    assert(toCandidates.length > 0);
+
+    var shortest = { distance: Number.POSITIVE_INFINITY };
+    _.forEach(fromCandidates, function(from) {
+      _.forEach(toCandidates, function(to) {
+        var distance = (to.x - from.x) * (to.x - from.x) + (to.y - from.y) * (to.y - from.y);
+        if (distance < shortest.distance) {
+          shortest = { distance: distance, from: from, to: to };
+        }
+      });
+    });
+
+    assert(shortest.from);
+    return shortest;
   },
 
   onPositionUpdated: function(name, x, y) {
