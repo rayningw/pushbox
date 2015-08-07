@@ -1,5 +1,6 @@
 var assert = require('assert');
 
+var MedPcParser = require('./medpc-parser');
 var StateSet = require('./state-set');
 
 var App = React.createClass({
@@ -68,6 +69,11 @@ var App = React.createClass({
         <div className="row">
           <div className="col-md-12">
             <h1>Pushybox</h1>
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-md-12">
+            <MedPcParser />
           </div>
         </div>
         <div className="row">

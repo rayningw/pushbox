@@ -6089,3 +6089,6 @@ svg.svg-canvas {
   .state-node .statements {
     font-size: 16px;
     font-family: monospace; }
+
+.medpc-parser .program-text {
+  font-family: monospace; }
