@@ -1,28 +1,350 @@
+var assert = require('assert');
+var _ = require('lodash');
+
+var Expandable = require('./expandable');
+var MedPcAstDisplayer = require('./medpc-ast-displayer');
+
 var MedPcParser = React.createClass({
 
   getInitialState: function() {
     return {
-      programText: getPavMedPcProgram()
+      programText: getPavMedPcProgram(),
+//      programText: getShortProgram(),
+      ast: { type: 'root', directives: [] }
+    };
+  },
+
+  parseProgram: function(text) {
+    var result = this.repeat(
+      this.choice(
+        this.parseMultilineComment,
+        this.parseAssignment,
+        this.parseStateSet,
+        this.parseLine
+      )
+    )(text);
+
+    console.log('parsed program:', result);
+
+    if (result) {
+      var directives = _.map(result.data.datas, function(data) {
+        return data.data;
+      });
+      return {
+        data: { type: 'program', directives: directives },
+        rest: result.rest
+      };
+    }
+  },
+
+  parseMultilineComment: function(text) {
+    var result = this.repeat(this.parseComment)(text);
+    if (result.data.datas.length > 0) {
+      var multilineComment;
+      _.forEach(result.data.datas, function(comment) {
+        if (!multilineComment) {
+          multilineComment = comment.value;
+        }
+        else {
+          multilineComment += '\n' + comment.value;
+        }
+      });
+      return {
+        data: { type: 'comment', value: multilineComment },
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseComment: function(text) {
+    var result = /^\\([^\n]*)\n?([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'comment', value: result[1] },
+        rest: result[2].trim()
+      };
+    }
+  },
+
+  parseAssignment: function(text) {
+    var result = /^([^=\n]+)\s*=\s*([\S]+)([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'assignment', lhs: result[1].trim(), rhs: result[2] },
+        rest: result[3].trim()
+      };
+    }
+  },
+
+  parseStateSet: function(text) {
+    var result = this.sequence(
+      function(text) {
+        var result = /^(S\.S\.[0-9]+),([\s\S]*)/.exec(text);
+        if (result) {
+          return {
+            data: { type: 'state-set-inner', name: result[1] },
+            rest: result[2].trim()
+          };
+        }
+      },
+      this.optional(this.parseComment),
+      this.repeat(this.parseState)
+    )(text);
+
+    if (result) {
+      return {
+        data: { type: 'state-set',
+                name: result.data.datas[0].name,
+                comment: result.data.datas[1].data,
+                states: result.data.datas[2].datas },
+        rest: result.rest.trim()
+      };
+    }
+  },
+
+  parseState: function(text) {
+    var result = this.sequence(
+      this.optional(this.parseComment),
+      function(text) {
+        var result = /^(S[0-9]+),([\s\S]*)/.exec(text);
+        if (result) {
+          return {
+            data: { type: 'state-inner', name: result[1] },
+            rest: result[2].trim()
+          };
+        }
+      },
+      this.optional(this.parseComment),
+      this.repeat(this.parseStatement)
+    )(text);
+
+    if (result) {
+      return {
+        data: {
+          type: 'state',
+          name: result.data.datas[1].name,
+          comment1: result.data.datas[0].data,
+          comment2: result.data.datas[2].data,
+          statements: result.data.datas[3].datas
+        },
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseStatement: function(text) {
+    var result = this.sequence(
+      this.optional(this.parseComment),
+      function(text) {
+        // TODO(ray): Do it without using regex to match the whole thing
+        var result = /^(.+?):([\s\S]*?)--->(\S+)([\s\S]*)/.exec(text);
+        if (result) {
+          var actions = this.parseActions(result[2].trim());
+          return {
+            data: { type: 'statement-inner',
+                    condition: result[1],
+                    actions: actions.data.actions,
+                    transition: result[3] },
+            rest: result[4]
+          }
+        }
+      }.bind(this)
+    )(text);
+
+    if (result) {
+      return {
+        data: _.assign({}, result.data.datas[1],
+                           { type: 'statement', comment: result.data.datas[0].data }),
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseActions: function(text) {
+    var result = this.repeat(this.parseAction)(text);
+    if (result) {
+      return {
+        data: { type: 'actions', actions: _.pluck(result.data.datas, 'value') },
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseAction: function(text) {
+    var result = /^(.+?)(?:;|--->|\s*$)([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'action', value: result[1] },
+        rest: result[2].trim()
+      };
+    }
+  },
+
+  parseLine: function(text) {
+    var result = /^([^\n]+)\n?([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'non-comment', value: result[1] },
+        rest: result[2]
+      };
+    }
+  },
+
+  sequence: function(parsers /* vargs */) {
+    parsers = Array.prototype.slice.call(arguments);
+    assert(_.every(parsers, _.isFunction));
+
+    return function(text) {
+      var datas = [];
+      var rest = text;
+      _.forEach(parsers, function(parser) {
+        var result = parser(rest);
+        if (!result) {
+          return false;
+        }
+        else {
+          datas.push(result.data);
+          rest = result.rest;
+        }
+      }.bind(this));
+      if (datas.length === parsers.length) {
+        return {
+          data: { type: 'sequence', datas: datas },
+          rest: rest
+        };
+      }
+    };
+  },
+
+  optional: function(parser) {
+    assert(_.isFunction(parser));
+
+    return function(text) {
+      var result = parser(text);
+      return {
+        data: { type: 'optional', data: result ? result.data : undefined },
+        rest: result ? result.rest : text
+      };
+    };
+  },
+
+  repeat: function(parser) {
+    assert(_.isFunction(parser));
+
+    return function(text) {
+      var datas = [];
+      var rest = text;
+      var result;
+      while (result = parser(rest)) {
+        datas.push(result.data);
+        rest = result.rest;
+      }
+      return {
+        data: { type: 'repeat', datas: datas },
+        rest: rest
+      }
+    };
+  },
+
+  choice: function(parsers /* vargs */) {
+    parsers = Array.prototype.slice.call(arguments);
+    assert(_.every(parsers, _.isFunction));
+
+    return function(text) {
+      console.log('attempting to parse:' + text);
+      var found;
+      _.forEach(parsers, function(parser) {
+        var result = parser(text);
+        if (result) {
+          found = {
+            data: { type: 'choice', data: result.data },
+            rest: result.rest
+          };
+          return false;
+        }
+      }.bind(this));
+      if (found) {
+        return found;
+      }
     };
   },
 
   handleSubmit: function(event) {
     event.preventDefault();
-    console.log('Parsing: ' + this.refs.text.getDOMNode().value);
+    var result = this.parseProgram(this.refs.text.getDOMNode().value);
+    if (result.rest.length > 0) {
+      console.log('Could not parse:', result.rest);
+    }
+    var ast = result.data;
+    console.log('Parsed AST:', ast);
+    this.setState({ ast: ast });
+
+    var program = this.translateToProgram(ast);
+    console.log('Parsed program:', program);
+    this.props.onParsed(program);
+  },
+
+  translateToProgram: function(ast) {
+    var states = [];
+    var positions = {};
+
+    var x = 0, y;
+    _.forEach(ast.directives, function(directive) {
+      if (directive.type === 'state-set') {
+        var stateSetName = directive.name;
+
+        y = 0;
+        _.forEach(directive.states, function(state) {
+          var stateName = stateSetName + '-' + state.name;
+
+          states.push({
+            name: stateName,
+            statements: _.map(state.statements, function(statement) {
+              return {
+                condition: statement.condition,
+                actions: statement.actions,
+                transition: stateSetName + '-' + statement.transition
+              };
+            })
+          });
+
+          positions[stateName] = { x: x * 600, y: y * 600 };
+          y++;
+        });
+        x++;
+      }
+      else {
+        console.log('Ignoring directive type: ' + directive.type);
+      }
+    });
+
+    return {
+      name: 'Program parsed on ' + new Date(),
+      states: states,
+      layout: {
+        positions: positions
+      }
+    };
   },
 
   render: function() {
     return (
-      <form onSubmit={this.handleSubmit} className="medpc-parser">
-        <div className="form-group">
-          <label htmlFor="medPcProgramText">MedPC Program Text</label>
-          <textarea ref="text" id="medPcProgramText" className="form-control program-text"
-                    rows="10" placeholder="Program text"
-                    defaultValue={this.state.programText}>
-          </textarea>
-        </div>
-        <button type="submit" className="btn btn-default">Parse</button>
-      </form>
+      <div>
+        <form onSubmit={this.handleSubmit} className="medpc-parser">
+          <div className="form-group">
+            <label htmlFor="medPcProgramText">MedPC Program Text</label>
+            <textarea ref="text" id="medPcProgramText" className="form-control program-text"
+                      rows="20" placeholder="Program text"
+                      defaultValue={this.state.programText}>
+            </textarea>
+          </div>
+          <button type="submit" className="btn btn-default">Parse</button>
+        </form>
+        <hr />
+        <Expandable title="Parsed AST">
+          <MedPcAstDisplayer ast={this.state.ast} />
+        </Expandable>
+      </div>
     );
   }
 });
@@ -30,6 +352,21 @@ var MedPcParser = React.createClass({
 // http://stackoverflow.com/questions/4376431/javascript-heredoc
 function heredoc(f) {
   return f.toString().match(/\/\*\s*([\s\S]*?)\s*\*\//m)[1];
+}
+
+function getShortProgram() {
+  return heredoc(function(){
+/*
+\ simple program
+\ non-sensical
+S.S.1, \ Session clock in .01" units
+S1,
+ #K21:--->S2
+S2,
+ .01": ADD B(13); ADD B(14); ADD B(15)--->SX
+ .02": ADD B(14)--->SY
+*/
+  });
 }
 
 function getPavMedPcProgram() {

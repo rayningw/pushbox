@@ -80,7 +80,9 @@ var StateNode = React.createClass({
               <th>Transition</th>
             </tr>
           </thead>
-          {statements}
+          <tbody>
+            {statements}
+          </tbody>
         </table>
       </div>
     );

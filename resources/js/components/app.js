@@ -63,6 +63,10 @@ var App = React.createClass({
     this.setState({ layout: layout });
   },
 
+  onParsed: function(program) {
+    this.setState({ name: program.name, states: program.states, layout: program.layout });
+  },
+
   render: function() {
     return (
       <div className="container">
@@ -73,7 +77,7 @@ var App = React.createClass({
         </div>
         <div className="row">
           <div className="col-md-12">
-            <MedPcParser />
+            <MedPcParser onParsed={this.onParsed} />
           </div>
         </div>
         <div className="row">

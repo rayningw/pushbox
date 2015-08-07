@@ -13494,6 +13494,10 @@ var App = React.createClass({displayName: "App",
     this.setState({ layout: layout });
   },
 
+  onParsed: function(program) {
+    this.setState({ name: program.name, states: program.states, layout: program.layout });
+  },
+
   render: function() {
     return (
       React.createElement("div", {className: "container"}, 
@@ -13504,7 +13508,7 @@ var App = React.createClass({displayName: "App",
         ), 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12"}, 
-            React.createElement(MedPcParser, null)
+            React.createElement(MedPcParser, {onParsed: this.onParsed})
           )
         ), 
         React.createElement("div", {className: "row"}, 
@@ -13527,7 +13531,7 @@ var App = React.createClass({displayName: "App",
 
 module.exports = App;
 
-},{"./medpc-parser":10,"./state-set":12,"assert":1}],8:[function(require,module,exports){
+},{"./medpc-parser":12,"./state-set":14,"assert":1}],8:[function(require,module,exports){
 var Arrow = React.createClass({displayName: "Arrow",
 
   render: function() {
@@ -13599,30 +13603,421 @@ var Draggable = React.createClass({displayName: "Draggable",
 module.exports = Draggable;
 
 },{}],10:[function(require,module,exports){
+var Expandable = React.createClass({displayName: "Expandable",
+
+  getInitialState: function() {
+    return {
+      expanded: this.props.expanded
+    };
+  },
+
+  toggle: function() {
+    this.setState({ expanded: !this.state.expanded });
+  },
+
+  render: function() {
+    return (
+      React.createElement("div", {className: "panel panel-default"}, 
+        React.createElement("div", {className: "panel-heading", onClick: this.toggle}, 
+          React.createElement("div", {className: "pull-right"}, this.state.expanded ? '[-]' : '[+]'), 
+          React.createElement("h3", {className: "panel-title"}, this.props.title)
+        ), 
+        React.createElement("div", {className: "panel-body", style: { display: this.state.expanded ? 'block' : 'none'}}, 
+          this.props.children
+        )
+      )
+    );
+  }
+
+});
+
+module.exports = Expandable;
+
+},{}],11:[function(require,module,exports){
+var _ = require('lodash');
+
+var MedPcAstDisplayer = React.createClass({displayName: "MedPcAstDisplayer",
+
+  makeNodeElem: function(node, prefix) {
+    return (
+      React.createElement("tr", null, 
+        React.createElement("td", null, prefix, node.type), 
+        React.createElement("td", null, React.createElement("pre", null, JSON.stringify(node, null, '\t')))
+      )
+    );
+  },
+
+  render: function() {
+    var nodeElems = _.map(this.props.ast.directives, function(node) {
+      return this.makeNodeElem(node);
+    }.bind(this));
+
+    return (
+      React.createElement("table", {className: "table table-bordered medpc-ast-displayer"}, 
+        React.createElement("thead", null, 
+          React.createElement("tr", null, 
+            React.createElement("th", null, "Type"), 
+            React.createElement("th", null, "Data")
+          )
+        ), 
+        React.createElement("tbody", null, 
+          nodeElems
+        )
+      )
+    );
+  }
+
+});
+
+module.exports = MedPcAstDisplayer;
+
+},{"lodash":6}],12:[function(require,module,exports){
+var assert = require('assert');
+var _ = require('lodash');
+
+var Expandable = require('./expandable');
+var MedPcAstDisplayer = require('./medpc-ast-displayer');
+
 var MedPcParser = React.createClass({displayName: "MedPcParser",
 
   getInitialState: function() {
     return {
-      programText: getPavMedPcProgram()
+      programText: getPavMedPcProgram(),
+//      programText: getShortProgram(),
+      ast: { type: 'root', directives: [] }
+    };
+  },
+
+  parseProgram: function(text) {
+    var result = this.repeat(
+      this.choice(
+        this.parseMultilineComment,
+        this.parseAssignment,
+        this.parseStateSet,
+        this.parseLine
+      )
+    )(text);
+
+    console.log('parsed program:', result);
+
+    if (result) {
+      var directives = _.map(result.data.datas, function(data) {
+        return data.data;
+      });
+      return {
+        data: { type: 'program', directives: directives },
+        rest: result.rest
+      };
+    }
+  },
+
+  parseMultilineComment: function(text) {
+    var result = this.repeat(this.parseComment)(text);
+    if (result.data.datas.length > 0) {
+      var multilineComment;
+      _.forEach(result.data.datas, function(comment) {
+        if (!multilineComment) {
+          multilineComment = comment.value;
+        }
+        else {
+          multilineComment += '\n' + comment.value;
+        }
+      });
+      return {
+        data: { type: 'comment', value: multilineComment },
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseComment: function(text) {
+    var result = /^\\([^\n]*)\n?([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'comment', value: result[1] },
+        rest: result[2].trim()
+      };
+    }
+  },
+
+  parseAssignment: function(text) {
+    var result = /^([^=\n]+)\s*=\s*([\S]+)([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'assignment', lhs: result[1].trim(), rhs: result[2] },
+        rest: result[3].trim()
+      };
+    }
+  },
+
+  parseStateSet: function(text) {
+    var result = this.sequence(
+      function(text) {
+        var result = /^(S\.S\.[0-9]+),([\s\S]*)/.exec(text);
+        if (result) {
+          return {
+            data: { type: 'state-set-inner', name: result[1] },
+            rest: result[2].trim()
+          };
+        }
+      },
+      this.optional(this.parseComment),
+      this.repeat(this.parseState)
+    )(text);
+
+    if (result) {
+      return {
+        data: { type: 'state-set',
+                name: result.data.datas[0].name,
+                comment: result.data.datas[1].data,
+                states: result.data.datas[2].datas },
+        rest: result.rest.trim()
+      };
+    }
+  },
+
+  parseState: function(text) {
+    var result = this.sequence(
+      this.optional(this.parseComment),
+      function(text) {
+        var result = /^(S[0-9]+),([\s\S]*)/.exec(text);
+        if (result) {
+          return {
+            data: { type: 'state-inner', name: result[1] },
+            rest: result[2].trim()
+          };
+        }
+      },
+      this.optional(this.parseComment),
+      this.repeat(this.parseStatement)
+    )(text);
+
+    if (result) {
+      return {
+        data: {
+          type: 'state',
+          name: result.data.datas[1].name,
+          comment1: result.data.datas[0].data,
+          comment2: result.data.datas[2].data,
+          statements: result.data.datas[3].datas
+        },
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseStatement: function(text) {
+    var result = this.sequence(
+      this.optional(this.parseComment),
+      function(text) {
+        // TODO(ray): Do it without using regex to match the whole thing
+        var result = /^(.+?):([\s\S]*?)--->(\S+)([\s\S]*)/.exec(text);
+        if (result) {
+          var actions = this.parseActions(result[2].trim());
+          return {
+            data: { type: 'statement-inner',
+                    condition: result[1],
+                    actions: actions.data.actions,
+                    transition: result[3] },
+            rest: result[4]
+          }
+        }
+      }.bind(this)
+    )(text);
+
+    if (result) {
+      return {
+        data: _.assign({}, result.data.datas[1],
+                           { type: 'statement', comment: result.data.datas[0].data }),
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseActions: function(text) {
+    var result = this.repeat(this.parseAction)(text);
+    if (result) {
+      return {
+        data: { type: 'actions', actions: _.pluck(result.data.datas, 'value') },
+        rest: result.rest.trim()
+      }
+    }
+  },
+
+  parseAction: function(text) {
+    var result = /^(.+?)(?:;|--->|\s*$)([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'action', value: result[1] },
+        rest: result[2].trim()
+      };
+    }
+  },
+
+  parseLine: function(text) {
+    var result = /^([^\n]+)\n?([\s\S]*)/.exec(text);
+    if (result) {
+      return {
+        data: { type: 'non-comment', value: result[1] },
+        rest: result[2]
+      };
+    }
+  },
+
+  sequence: function(parsers /* vargs */) {
+    parsers = Array.prototype.slice.call(arguments);
+    assert(_.every(parsers, _.isFunction));
+
+    return function(text) {
+      var datas = [];
+      var rest = text;
+      _.forEach(parsers, function(parser) {
+        var result = parser(rest);
+        if (!result) {
+          return false;
+        }
+        else {
+          datas.push(result.data);
+          rest = result.rest;
+        }
+      }.bind(this));
+      if (datas.length === parsers.length) {
+        return {
+          data: { type: 'sequence', datas: datas },
+          rest: rest
+        };
+      }
+    };
+  },
+
+  optional: function(parser) {
+    assert(_.isFunction(parser));
+
+    return function(text) {
+      var result = parser(text);
+      return {
+        data: { type: 'optional', data: result ? result.data : undefined },
+        rest: result ? result.rest : text
+      };
+    };
+  },
+
+  repeat: function(parser) {
+    assert(_.isFunction(parser));
+
+    return function(text) {
+      var datas = [];
+      var rest = text;
+      var result;
+      while (result = parser(rest)) {
+        datas.push(result.data);
+        rest = result.rest;
+      }
+      return {
+        data: { type: 'repeat', datas: datas },
+        rest: rest
+      }
+    };
+  },
+
+  choice: function(parsers /* vargs */) {
+    parsers = Array.prototype.slice.call(arguments);
+    assert(_.every(parsers, _.isFunction));
+
+    return function(text) {
+      console.log('attempting to parse:' + text);
+      var found;
+      _.forEach(parsers, function(parser) {
+        var result = parser(text);
+        if (result) {
+          found = {
+            data: { type: 'choice', data: result.data },
+            rest: result.rest
+          };
+          return false;
+        }
+      }.bind(this));
+      if (found) {
+        return found;
+      }
     };
   },
 
   handleSubmit: function(event) {
     event.preventDefault();
-    console.log('Parsing: ' + this.refs.text.getDOMNode().value);
+    var result = this.parseProgram(this.refs.text.getDOMNode().value);
+    if (result.rest.length > 0) {
+      console.log('Could not parse:', result.rest);
+    }
+    var ast = result.data;
+    console.log('Parsed AST:', ast);
+    this.setState({ ast: ast });
+
+    var program = this.translateToProgram(ast);
+    console.log('Parsed program:', program);
+    this.props.onParsed(program);
+  },
+
+  translateToProgram: function(ast) {
+    var states = [];
+    var positions = {};
+
+    var x = 0, y;
+    _.forEach(ast.directives, function(directive) {
+      if (directive.type === 'state-set') {
+        var stateSetName = directive.name;
+
+        y = 0;
+        _.forEach(directive.states, function(state) {
+          var stateName = stateSetName + '-' + state.name;
+
+          states.push({
+            name: stateName,
+            statements: _.map(state.statements, function(statement) {
+              return {
+                condition: statement.condition,
+                actions: statement.actions,
+                transition: stateSetName + '-' + statement.transition
+              };
+            })
+          });
+
+          positions[stateName] = { x: x * 600, y: y * 600 };
+          y++;
+        });
+        x++;
+      }
+      else {
+        console.log('Ignoring directive type: ' + directive.type);
+      }
+    });
+
+    return {
+      name: 'Program parsed on ' + new Date(),
+      states: states,
+      layout: {
+        positions: positions
+      }
+    };
   },
 
   render: function() {
     return (
-      React.createElement("form", {onSubmit: this.handleSubmit, className: "medpc-parser"}, 
-        React.createElement("div", {className: "form-group"}, 
-          React.createElement("label", {htmlFor: "medPcProgramText"}, "MedPC Program Text"), 
-          React.createElement("textarea", {ref: "text", id: "medPcProgramText", className: "form-control program-text", 
-                    rows: "10", placeholder: "Program text", 
-                    defaultValue: this.state.programText}
-          )
+      React.createElement("div", null, 
+        React.createElement("form", {onSubmit: this.handleSubmit, className: "medpc-parser"}, 
+          React.createElement("div", {className: "form-group"}, 
+            React.createElement("label", {htmlFor: "medPcProgramText"}, "MedPC Program Text"), 
+            React.createElement("textarea", {ref: "text", id: "medPcProgramText", className: "form-control program-text", 
+                      rows: "20", placeholder: "Program text", 
+                      defaultValue: this.state.programText}
+            )
+          ), 
+          React.createElement("button", {type: "submit", className: "btn btn-default"}, "Parse")
         ), 
-        React.createElement("button", {type: "submit", className: "btn btn-default"}, "Parse")
+        React.createElement("hr", null), 
+        React.createElement(Expandable, {title: "Parsed AST"}, 
+          React.createElement(MedPcAstDisplayer, {ast: this.state.ast})
+        )
       )
     );
   }
@@ -13631,6 +14026,21 @@ var MedPcParser = React.createClass({displayName: "MedPcParser",
 // http://stackoverflow.com/questions/4376431/javascript-heredoc
 function heredoc(f) {
   return f.toString().match(/\/\*\s*([\s\S]*?)\s*\*\//m)[1];
+}
+
+function getShortProgram() {
+  return heredoc(function(){
+/*
+\ simple program
+\ non-sensical
+S.S.1, \ Session clock in .01" units
+S1,
+ #K21:--->S2
+S2,
+ .01": ADD B(13); ADD B(14); ADD B(15)--->SX
+ .02": ADD B(14)--->SY
+*/
+  });
 }
 
 function getPavMedPcProgram() {
@@ -13875,7 +14285,7 @@ S2,
 
 module.exports = MedPcParser;
 
-},{}],11:[function(require,module,exports){
+},{"./expandable":10,"./medpc-ast-displayer":11,"assert":1,"lodash":6}],13:[function(require,module,exports){
 var _ = require('lodash');
 
 var StateNode = React.createClass({displayName: "StateNode",
@@ -13958,7 +14368,9 @@ var StateNode = React.createClass({displayName: "StateNode",
               React.createElement("th", null, "Transition")
             )
           ), 
-          statements
+          React.createElement("tbody", null, 
+            statements
+          )
         )
       )
     );
@@ -13968,7 +14380,7 @@ var StateNode = React.createClass({displayName: "StateNode",
 
 module.exports = StateNode;
 
-},{"lodash":6}],12:[function(require,module,exports){
+},{"lodash":6}],14:[function(require,module,exports){
 var assert = require('assert');
 var _ = require('lodash');
 
@@ -13996,7 +14408,12 @@ var StateSet = React.createClass({displayName: "StateSet",
 
       _.forEach(state.statements, function(statement, idx) {
         var fromCandidates = stateNodeElem.getStatementConnectionPoints(statement.condition);
-        var toCandidates = this.refs[statement.transition].getStateConnectionPoints();
+        var toNode = this.refs[statement.transition];
+        if (!toNode) {
+          return;
+        }
+
+        var toCandidates = toNode.getStateConnectionPoints();
 
         var svgCanvasRect = React.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
         var shortestArrow = this.calcShortestArrow(fromCandidates, toCandidates);
@@ -14114,7 +14531,7 @@ var StateSet = React.createClass({displayName: "StateSet",
 
 module.exports = StateSet;
 
-},{"./arrow":8,"./draggable":9,"./state-node":11,"assert":1,"lodash":6}],13:[function(require,module,exports){
+},{"./arrow":8,"./draggable":9,"./state-node":13,"assert":1,"lodash":6}],15:[function(require,module,exports){
 'use strict';
 
 var assert = require('assert');
@@ -14167,7 +14584,7 @@ function statement(condition, actions, transition) {
   }
 }
 
-},{"assert":1}],14:[function(require,module,exports){
+},{"assert":1}],16:[function(require,module,exports){
 'use strict';
 
 var config = require('./config/config');
@@ -14187,4 +14604,4 @@ else {
   window.attachEvent('onload', run);
 }
 
-},{"./components/app":7,"./config/config":13}]},{},[14]);
+},{"./components/app":7,"./config/config":15}]},{},[16]);

@@ -25,7 +25,12 @@ var StateSet = React.createClass({
 
       _.forEach(state.statements, function(statement, idx) {
         var fromCandidates = stateNodeElem.getStatementConnectionPoints(statement.condition);
-        var toCandidates = this.refs[statement.transition].getStateConnectionPoints();
+        var toNode = this.refs[statement.transition];
+        if (!toNode) {
+          return;
+        }
+
+        var toCandidates = toNode.getStateConnectionPoints();
 
         var svgCanvasRect = React.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
         var shortestArrow = this.calcShortestArrow(fromCandidates, toCandidates);

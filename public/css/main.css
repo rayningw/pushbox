@@ -6092,3 +6092,13 @@ svg.svg-canvas {
 
 .medpc-parser .program-text {
   font-family: monospace; }
+
+table.medpc-ast-displayer {
+  font-family: monospace;
+  table-layout: fixed; }
+  table.medpc-ast-displayer th:nth-child(1) {
+    width: 10%; }
+  table.medpc-ast-displayer th:nth-child(2) {
+    width: 90%; }
+  table.medpc-ast-displayer th, table.medpc-ast-displayer td {
+    border: 1px solid gray; }
