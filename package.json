@@ -4,9 +4,9 @@
     "express": "^4.13.3",
     "lodash": "^3.10.0"
   },
-  "name": "pushybox",
+  "name": "leverbox",
   "version": "0.0.1",
-  "description": "Experimental behavioural research app",
+  "description": "Behavioural experimental research app",
   "main": "app.js",
   "devDependencies": {
     "browserify": "^11.0.1",

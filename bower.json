@@ -1,10 +1,10 @@
 {
-  "name": "pushybox",
+  "name": "leverbox",
   "version": "0.0.1",
   "authors": [
     "Ray Wu <rayning.wu@gmail.com>"
   ],
-  "description": "Experimental behavioural research app",
+  "description": "Behavioural experimental research app",
   "main": "app.js",
   "moduleType": [
     "node"

@@ -11,7 +11,7 @@ var App = React.createClass({
     var program = this.loadProgram();
 
     return {
-      title: 'Pushybox',
+      title: 'Leverbox',
       name: program.name,
       stateSets: program.stateSets,
       positions: program.positions
