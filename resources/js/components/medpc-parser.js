@@ -281,37 +281,22 @@ var MedPcParser = React.createClass({
 
     var program = this.translateToProgram(ast);
     console.log('Parsed program:', program);
-    this.props.onParsed(program);
+    this.props.onParse(program);
   },
 
   translateToProgram: function(ast) {
-    var states = [];
+    var stateSets = [];
     var positions = {};
 
-    var x = 0, y;
     _.forEach(ast.directives, function(directive) {
       if (directive.type === 'state-set') {
-        var stateSetName = directive.name;
+        var stateSet = directive;
+        stateSets.push(stateSet);
 
-        y = 0;
-        _.forEach(directive.states, function(state) {
-          var stateName = stateSetName + '-' + state.name;
-
-          states.push({
-            name: stateName,
-            statements: _.map(state.statements, function(statement) {
-              return {
-                condition: statement.condition,
-                actions: statement.actions,
-                transition: stateSetName + '-' + statement.transition
-              };
-            })
-          });
-
-          positions[stateName] = { x: x * 600, y: y * 600 };
-          y++;
+        positions[stateSet.name] = {};
+        _.forEach(stateSet.states, function(state, idx) {
+          positions[stateSet.name][state.name] = { x: idx * 100, y: idx * 100 };
         });
-        x++;
       }
       else {
         console.log('Ignoring directive type: ' + directive.type);
@@ -319,11 +304,9 @@ var MedPcParser = React.createClass({
     });
 
     return {
-      name: 'Program parsed on ' + new Date(),
-      states: states,
-      layout: {
-        positions: positions
-      }
+      name: 'Parsed program',
+      stateSets: stateSets,
+      positions: positions
     };
   },
 

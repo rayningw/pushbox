@@ -13430,9 +13430,11 @@ function hasOwnProperty(obj, prop) {
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],7:[function(require,module,exports){
 var assert = require('assert');
+var _ = require('lodash');
 
 var MedPcParser = require('./medpc-parser');
 var StateSet = require('./state-set');
+var Tabbed = require('./tabbed');
 
 var App = React.createClass({displayName: "App",
 
@@ -13442,8 +13444,8 @@ var App = React.createClass({displayName: "App",
     return {
       title: 'Pushybox',
       name: program.name,
-      states: program.states,
-      layout: program.layout
+      stateSets: program.stateSets,
+      positions: program.positions
     }
   },
 
@@ -13471,11 +13473,14 @@ var App = React.createClass({displayName: "App",
     }
   },
 
+  loadDefault: function() {
+    this.setState(this.props.newProgram);
+  },
+
   validateProgram: function(program) {
     assert(program.name, 'Missing name');
-    assert(program.states instanceof Array, 'Missing states');
-    assert(program.layout, 'Missing layout');
-    assert(program.layout.positions, 'Missing positions');
+    assert(program.stateSets, 'Missing state sets');
+    assert(program.positions, 'Missing positions');
 
     return program;
   },
@@ -13483,32 +13488,58 @@ var App = React.createClass({displayName: "App",
   saveProgram: function() {
     var program = {
       name: this.state.name,
-      states: this.state.states,
-      layout: this.state.layout
+      stateSets: this.state.stateSets,
+      positions: this.state.positions
     }
     console.log('Saving program');
     window.localStorage.setItem('program', JSON.stringify(program));
   },
 
-  onLayoutUpdated: function(layout) {
-    this.setState({ layout: layout });
+  onPositionsUpdated: function(stateSetName, stateSetPositions) {
+    var positions = _.clone(this.state.positions, true);
+    positions[stateSetName] = stateSetPositions;
+    this.setState({ positions: positions });
   },
 
-  onParsed: function(program) {
-    this.setState({ name: program.name, states: program.states, layout: program.layout });
+  onParse: function(program) {
+    this.setState(program);
+  },
+
+  onSelectStateSet: function() {
+    // Need to tell visible tab content to re-render since it may depend on its visibility
+    // Ideally this should be handled in the Tabbed component after changing visibility
+    // but could not get it to work
+    this.forceUpdate();
   },
 
   render: function() {
+    var tabs = _.map(this.state.stateSets, function(stateSet) {
+      return {
+        name: stateSet.name,
+        content: (
+          React.createElement(StateSet, {name: stateSet.name, 
+                    states: stateSet.states, 
+                    positions: this.state.positions[stateSet.name], 
+                    onPositionsUpdated: _.partial(this.onPositionsUpdated, [stateSet.name])})
+        )
+      };
+    }.bind(this));
+
     return (
       React.createElement("div", {className: "container"}, 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12"}, 
-            React.createElement("h1", null, "Pushybox")
+            React.createElement("h1", null, "Pushbox")
           )
         ), 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12"}, 
-            React.createElement(MedPcParser, {onParsed: this.onParsed})
+            React.createElement("button", {className: "btn", onClick: this.loadDefault}, "Load Default")
+          )
+        ), 
+        React.createElement("div", {className: "row"}, 
+          React.createElement("div", {className: "col-md-12"}, 
+            React.createElement(MedPcParser, {onParse: this.onParse})
           )
         ), 
         React.createElement("div", {className: "row"}, 
@@ -13518,9 +13549,7 @@ var App = React.createClass({displayName: "App",
         ), 
         React.createElement("div", {className: "row"}, 
           React.createElement("div", {className: "col-md-12"}, 
-            React.createElement(StateSet, {states: this.state.states, 
-                      layout: this.state.layout, 
-                      onLayoutUpdated: this.onLayoutUpdated})
+            React.createElement(Tabbed, {tabs: tabs, onSelect: this.onSelectStateSet})
           )
         )
       )
@@ -13531,7 +13560,7 @@ var App = React.createClass({displayName: "App",
 
 module.exports = App;
 
-},{"./medpc-parser":12,"./state-set":14,"assert":1}],8:[function(require,module,exports){
+},{"./medpc-parser":12,"./state-set":14,"./tabbed":15,"assert":1,"lodash":6}],8:[function(require,module,exports){
 var Arrow = React.createClass({displayName: "Arrow",
 
   render: function() {
@@ -13955,37 +13984,22 @@ var MedPcParser = React.createClass({displayName: "MedPcParser",
 
     var program = this.translateToProgram(ast);
     console.log('Parsed program:', program);
-    this.props.onParsed(program);
+    this.props.onParse(program);
   },
 
   translateToProgram: function(ast) {
-    var states = [];
+    var stateSets = [];
     var positions = {};
 
-    var x = 0, y;
     _.forEach(ast.directives, function(directive) {
       if (directive.type === 'state-set') {
-        var stateSetName = directive.name;
+        var stateSet = directive;
+        stateSets.push(stateSet);
 
-        y = 0;
-        _.forEach(directive.states, function(state) {
-          var stateName = stateSetName + '-' + state.name;
-
-          states.push({
-            name: stateName,
-            statements: _.map(state.statements, function(statement) {
-              return {
-                condition: statement.condition,
-                actions: statement.actions,
-                transition: stateSetName + '-' + statement.transition
-              };
-            })
-          });
-
-          positions[stateName] = { x: x * 600, y: y * 600 };
-          y++;
+        positions[stateSet.name] = {};
+        _.forEach(stateSet.states, function(state, idx) {
+          positions[stateSet.name][state.name] = { x: idx * 100, y: idx * 100 };
         });
-        x++;
       }
       else {
         console.log('Ignoring directive type: ' + directive.type);
@@ -13993,11 +14007,9 @@ var MedPcParser = React.createClass({displayName: "MedPcParser",
     });
 
     return {
-      name: 'Program parsed on ' + new Date(),
-      states: states,
-      layout: {
-        positions: positions
-      }
+      name: 'Parsed program',
+      stateSets: stateSets,
+      positions: positions
     };
   },
 
@@ -14454,14 +14466,15 @@ var StateSet = React.createClass({displayName: "StateSet",
   },
 
   onPositionUpdated: function(name, x, y) {
-    var newLayout = _.clone(this.props.layout, true);
-    newLayout.positions[name] = { x: x, y: y };
-    this.props.onLayoutUpdated(newLayout);
+    var positions = _.clone(this.props.positions, true);
+    positions[name] = { x: x, y: y };
+    this.props.onPositionsUpdated(positions);
   },
 
   makeStateNodes: function() {
     return _.map(this.props.states, function(state) {
-      var position = this.props.layout.positions[state.name];
+      var position = this.props.positions[state.name];
+      assert(position, 'No position found for state: ' + state.name + ' in state set: ' + this.props.name);
 
       return (
         React.createElement(Draggable, {key: state.name, x: position.x, y: position.y, 
@@ -14481,8 +14494,7 @@ var StateSet = React.createClass({displayName: "StateSet",
     });
 
     return (
-      React.createElement("div", null, 
-        React.createElement("div", {className: "title"}, "State Diagram"), 
+      React.createElement("div", {className: "state-set"}, 
         React.createElement("div", {className: "combined-canvas"}, 
           React.createElement("div", {className: "html-canvas"}, 
             stateNodes
@@ -14532,6 +14544,55 @@ var StateSet = React.createClass({displayName: "StateSet",
 module.exports = StateSet;
 
 },{"./arrow":8,"./draggable":9,"./state-node":13,"assert":1,"lodash":6}],15:[function(require,module,exports){
+var _ = require('lodash');
+
+var Tabbed = React.createClass({displayName: "Tabbed",
+
+  getInitialState: function() {
+    return {
+      selectedIdx: 0
+    };
+  },
+
+  select: function(idx, evt) {
+    evt.preventDefault();
+    this.setState({ selectedIdx: idx });
+    this.props.onSelect(idx);
+  },
+
+  renderPass: 0,
+
+  render: function() {
+    var lisAndContents = _.map(this.props.tabs, function(tab, idx) {
+      var isSelected = idx == this.state.selectedIdx;
+      return [
+        (
+          React.createElement("li", {key: 'nav-' + idx, role: "presentation", className: isSelected ? 'active' : ''}, 
+            React.createElement("a", {href: "#", onClick: _.wrap(idx, this.select)}, tab.name)
+          )
+        ),
+        (
+          React.createElement("div", {ref: 'content-' + idx, key: 'content-' + idx, style: { display: (isSelected ? 'block' : 'none')}}, 
+            tab.content
+          )
+        )
+      ];
+    }.bind(this));
+    return (
+      React.createElement("div", null, 
+        React.createElement("ul", {className: "nav nav-tabs"}, 
+          _.pluck(lisAndContents, 0)
+        ), 
+        _.pluck(lisAndContents, 1)
+      )
+    );
+  }
+
+});
+
+module.exports = Tabbed;
+
+},{"lodash":6}],16:[function(require,module,exports){
 'use strict';
 
 var assert = require('assert');
@@ -14540,34 +14601,54 @@ exports.message = 'Sups world!!!';
 
 exports.newProgram = {
   name: 'New Program',
-  states: [
+  stateSets: [
     {
-      name: 'S0',
-      statements: [
-        statement('#R1', [ 'ADD A' ], 'S2'),
-        statement('#R2', [ 'ADD B' ], 'S1')
+      name: 'S.S.1',
+      states: [
+        {
+          name: 'S0',
+          statements: [
+            statement('#R1', [ 'ADD A' ], 'S2'),
+            statement('#R2', [ 'ADD B' ], 'S1')
+          ]
+        },
+        {
+          name: 'S1',
+          statements: [
+            statement('1"', [ 'SET C(5)=0' ], 'S0'),
+            statement('2"', [ 'SET C(6)=0' ], 'S2')
+          ]
+        }
       ]
     },
     {
-      name: 'S1',
-      statements: [
-        statement('1"', [ 'SET C(5)=0' ], 'S0'),
-        statement('2"', [ 'SET C(6)=0' ], 'S2')
-      ]
-    },
-    {
-      name: 'S2',
-      statements: [
-        statement('3"', [ 'ON ^Pellet' ], 'S1'),
-        statement('4"', [ 'ON ^Laser' ], 'S1')
+      name: 'S.S.2',
+      states: [
+        {
+          name: 'S0',
+          statements: [
+            statement('3"', [ 'ON ^Pellet' ], 'S1'),
+            statement('4"', [ 'ON ^Laser' ], 'S1')
+          ]
+        },
+        {
+          name: 'S1',
+          statements: [
+            statement('#Z1', [ 'ON ^Super' ], 'S0'),
+            statement('#Z2"', [ 'ON ^Awesome' ], 'END')
+          ]
+        }
       ]
     }
   ],
-  layout: {
-    positions: {
+  positions: {
+    'S.S.1': {
       'S0': { x: 0, y: 0 },
-      'S1': { x: 50, y: 50},
-      'S2': { x: 100, y: 100}
+      'S1': { x: 200, y: 200 }
+    },
+    'S.S.2': {
+      'S0': { x: 0, y: 0 },
+      'S1': { x: 200, y: 200 }
     }
   }
 };
@@ -14584,7 +14665,7 @@ function statement(condition, actions, transition) {
   }
 }
 
-},{"assert":1}],16:[function(require,module,exports){
+},{"assert":1}],17:[function(require,module,exports){
 'use strict';
 
 var config = require('./config/config');
@@ -14604,4 +14685,4 @@ else {
   window.attachEvent('onload', run);
 }
 
-},{"./components/app":7,"./config/config":15}]},{},[16]);
+},{"./components/app":7,"./config/config":16}]},{},[17]);

@@ -6060,8 +6060,7 @@ button.close {
     display: none !important; } }
 
 .combined-canvas {
-  height: 600px;
-  border: 2px solid gray; }
+  overflow: visible; }
 
 .html-canvas {
   position: absolute;

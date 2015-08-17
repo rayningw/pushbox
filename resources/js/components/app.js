@@ -1,7 +1,9 @@
 var assert = require('assert');
+var _ = require('lodash');
 
 var MedPcParser = require('./medpc-parser');
 var StateSet = require('./state-set');
+var Tabbed = require('./tabbed');
 
 var App = React.createClass({
 
@@ -11,8 +13,8 @@ var App = React.createClass({
     return {
       title: 'Pushybox',
       name: program.name,
-      states: program.states,
-      layout: program.layout
+      stateSets: program.stateSets,
+      positions: program.positions
     }
   },
 
@@ -40,11 +42,14 @@ var App = React.createClass({
     }
   },
 
+  loadDefault: function() {
+    this.setState(this.props.newProgram);
+  },
+
   validateProgram: function(program) {
     assert(program.name, 'Missing name');
-    assert(program.states instanceof Array, 'Missing states');
-    assert(program.layout, 'Missing layout');
-    assert(program.layout.positions, 'Missing positions');
+    assert(program.stateSets, 'Missing state sets');
+    assert(program.positions, 'Missing positions');
 
     return program;
   },
@@ -52,32 +57,58 @@ var App = React.createClass({
   saveProgram: function() {
     var program = {
       name: this.state.name,
-      states: this.state.states,
-      layout: this.state.layout
+      stateSets: this.state.stateSets,
+      positions: this.state.positions
     }
     console.log('Saving program');
     window.localStorage.setItem('program', JSON.stringify(program));
   },
 
-  onLayoutUpdated: function(layout) {
-    this.setState({ layout: layout });
+  onPositionsUpdated: function(stateSetName, stateSetPositions) {
+    var positions = _.clone(this.state.positions, true);
+    positions[stateSetName] = stateSetPositions;
+    this.setState({ positions: positions });
   },
 
-  onParsed: function(program) {
-    this.setState({ name: program.name, states: program.states, layout: program.layout });
+  onParse: function(program) {
+    this.setState(program);
+  },
+
+  onSelectStateSet: function() {
+    // Need to tell visible tab content to re-render since it may depend on its visibility
+    // Ideally this should be handled in the Tabbed component after changing visibility
+    // but could not get it to work
+    this.forceUpdate();
   },
 
   render: function() {
+    var tabs = _.map(this.state.stateSets, function(stateSet) {
+      return {
+        name: stateSet.name,
+        content: (
+          <StateSet name={stateSet.name}
+                    states={stateSet.states}
+                    positions={this.state.positions[stateSet.name]}
+                    onPositionsUpdated={_.partial(this.onPositionsUpdated, [stateSet.name])} />
+        )
+      };
+    }.bind(this));
+
     return (
       <div className="container">
         <div className="row">
           <div className="col-md-12">
-            <h1>Pushybox</h1>
+            <h1>Pushbox</h1>
           </div>
         </div>
         <div className="row">
           <div className="col-md-12">
-            <MedPcParser onParsed={this.onParsed} />
+            <button className="btn" onClick={this.loadDefault}>Load Default</button>
+          </div>
+        </div>
+        <div className="row">
+          <div className="col-md-12">
+            <MedPcParser onParse={this.onParse} />
           </div>
         </div>
         <div className="row">
@@ -87,9 +118,7 @@ var App = React.createClass({
         </div>
         <div className="row">
           <div className="col-md-12">
-            <StateSet states={this.state.states}
-                      layout={this.state.layout}
-                      onLayoutUpdated={this.onLayoutUpdated} />
+            <Tabbed tabs={tabs} onSelect={this.onSelectStateSet} />
           </div>
         </div>
       </div>

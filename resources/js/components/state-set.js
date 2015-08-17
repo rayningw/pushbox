@@ -71,14 +71,15 @@ var StateSet = React.createClass({
   },
 
   onPositionUpdated: function(name, x, y) {
-    var newLayout = _.clone(this.props.layout, true);
-    newLayout.positions[name] = { x: x, y: y };
-    this.props.onLayoutUpdated(newLayout);
+    var positions = _.clone(this.props.positions, true);
+    positions[name] = { x: x, y: y };
+    this.props.onPositionsUpdated(positions);
   },
 
   makeStateNodes: function() {
     return _.map(this.props.states, function(state) {
-      var position = this.props.layout.positions[state.name];
+      var position = this.props.positions[state.name];
+      assert(position, 'No position found for state: ' + state.name + ' in state set: ' + this.props.name);
 
       return (
         <Draggable key={state.name} x={position.x} y={position.y}
@@ -98,8 +99,7 @@ var StateSet = React.createClass({
     });
 
     return (
-      <div>
-        <div className="title">State Diagram</div>
+      <div className="state-set">
         <div className="combined-canvas">
           <div className="html-canvas">
             {stateNodes}
