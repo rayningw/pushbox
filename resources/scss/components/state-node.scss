@@ -1,0 +1,16 @@
+.state-node {
+
+  padding: 10px;
+  max-width: 400px;
+  border: 1px solid gray;
+
+  .name {
+    font-size: 24px;
+  }
+
+  .statements {
+    font-size: 16px;
+    font-family: monospace;
+  }
+
+}
