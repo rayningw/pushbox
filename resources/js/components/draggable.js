@@ -1,3 +1,5 @@
+var _ = require('lodash');
+
 var Draggable = React.createClass({
 
   getInitialState: function() {
@@ -5,33 +7,48 @@ var Draggable = React.createClass({
     };
   },
 
-  startX: 0,
-  startY: 0,
+  // The position of the element when dragging starts
+  originalX: 0,
+  originalY: 0,
 
-  // The clientX co-ordinate on the dragend event was a strange number, so we record the latest
-  // co-ordinates on drag
-  lastMouseX: 0,
-  lastMouseY: 0,
+  // The mouse co-ordinates when the dragging starts
+  startMouseX: 0,
+  startMouseY: 0,
 
-  onDrag: function(event) {
-    // A (0,0) event fires just before dragend
-    if (event.clientX === 0 && event.clientY === 0) {
-      return;
-    }
-    this.lastMouseX = event.clientX;
-    this.lastMouseY = event.clientY;
+  // NOTE(ray): Tried using drag events but there were several bugs:
+  // 1) Drag end event did not report clientX and clientY correctly
+  // 2) Drag move event did not fire when dragged outside of some range
+
+  onMouseDown: function(event) {
+    this.startMouseX = event.clientX;
+    this.startMouseY = event.clientY;
+    this.originalX = this.props.x;
+    this.originalY = this.props.y;
+    this.addDocumentListeners();
   },
 
-  onDragStart: function(event) {
-    this.startX = event.clientX;
-    this.startY = event.clientY;
-    this.lastMouseX = event.clientX;
-    this.lastMouseY = event.clientY;
+  onDocumentMouseMove: function(event) {
+    this.updateXy(event.clientX, event.clientY);
   },
 
-  onDragEnd: function(event) {
-    var newX = this.props.x + this.lastMouseX - this.startX;
-    var newY = this.props.y + this.lastMouseY - this.startY;
+  onDocumentMouseUp: function(event) {
+    this.updateXy(event.clientX, event.clientY);
+    this.removeDocumentListeners();
+  },
+
+  addDocumentListeners: function() {
+    document.addEventListener('mouseup', this.onDocumentMouseUp);
+    document.addEventListener('mousemove', this.onDocumentMouseMove);
+  },
+
+  removeDocumentListeners: function() {
+    document.removeEventListener('mouseup', this.onDocumentMouseUp);
+    document.removeEventListener('mousemove', this.onDocumentMouseMove);
+  },
+
+  updateXy: function(lastX, lastY) {
+    var newX = this.originalX + lastX - this.startMouseX;
+    var newY = this.originalY + lastY - this.startMouseY;
     this.props.onDragComplete(newX, newY);
   },
 
@@ -39,12 +56,10 @@ var Draggable = React.createClass({
     var style = { left: this.props.x, top: this.props.y };
 
     return (
-      <div className="draggable-container" draggable="true" style={style}
-           onDrag={this.onDrag} onDragStart={this.onDragStart} onDragEnd={this.onDragEnd}>
+      <div className="draggable-container" style={style} onMouseDown={this.onMouseDown}>
         {this.props.children}
       </div>
     );
-
   }
 
 });
