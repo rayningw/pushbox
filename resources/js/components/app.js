@@ -4,6 +4,8 @@ var _ = require('lodash');
 var MedPcParser = require('./medpc-parser');
 var StateSet = require('./state-set');
 var Tabbed = require('./tabbed');
+var Sidebarred = require('./sidebarred');
+var Routed = require('./routed');
 
 var App = React.createClass({
 
@@ -72,6 +74,7 @@ var App = React.createClass({
 
   onParse: function(program) {
     this.setState(program);
+    window.location.hash = 'program';
   },
 
   onSelectStateSet: function() {
@@ -94,34 +97,55 @@ var App = React.createClass({
       };
     }.bind(this));
 
-    return (
+    var sidebarContent = (
+      <ul>
+        <li><a href="#parse">Parse</a></li>
+        <li><a href="#program">Program</a></li>
+      </ul>
+    );
+
+    var pageContent = (
       <div className="container">
         <div className="row">
           <div className="col-md-12">
-            <h1>Pushbox</h1>
+            <h1>Leverbox</h1>
           </div>
         </div>
-        <div className="row">
-          <div className="col-md-12">
-            <button className="btn" onClick={this.loadDefault}>Load Default</button>
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-md-12">
-            <MedPcParser onParse={this.onParse} />
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-md-12 title">
-            {this.state.name}
-          </div>
-        </div>
-        <div className="row">
-          <div className="col-md-12">
-            <Tabbed tabs={tabs} onSelect={this.onSelectStateSet} />
-          </div>
-        </div>
+        <Routed routes={{
+          'parse': (
+            <div className="row">
+              <div className="col-md-12">
+                <MedPcParser onParse={this.onParse} />
+              </div>
+            </div>
+          ),
+          'program': (
+            <div>
+              <div className="row">
+                <div className="col-md-12">
+                  <button className="btn" onClick={this.loadDefault}>Load Default</button>
+                </div>
+              </div>
+              <div className="row">
+                <div className="col-md-12 title">
+                  {this.state.name}
+                </div>
+              </div>
+              <div className="row">
+                <div className="col-md-12">
+                  <Tabbed tabs={tabs} onSelect={this.onSelectStateSet} />
+                </div>
+              </div>
+            </div>
+          )
+        }} />
       </div>
+    );
+
+    return (
+      <Sidebarred brand="Leverbox"
+                  sidebarContent={sidebarContent}
+                  pageContent={pageContent} />
     );
   }
 
