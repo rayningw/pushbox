@@ -25,8 +25,6 @@ var MedPcParser = React.createClass({
       )
     )(text);
 
-    console.log('parsed program:', result);
-
     if (result) {
       var directives = _.map(result.data.datas, function(data) {
         return data.data;
@@ -252,7 +250,6 @@ var MedPcParser = React.createClass({
     assert(_.every(parsers, _.isFunction));
 
     return function(text) {
-      console.log('attempting to parse:' + text);
       var found;
       _.forEach(parsers, function(parser) {
         var result = parser(text);
@@ -300,7 +297,7 @@ var MedPcParser = React.createClass({
         });
       }
       else {
-        console.log('Ignoring directive type: ' + directive.type);
+        // Ignore directive type
       }
     });
 

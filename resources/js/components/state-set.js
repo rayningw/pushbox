@@ -37,9 +37,11 @@ var StateSet = React.createClass({
         var shortestArrow = this.calcShortestArrow(fromCandidates, toCandidates);
         var shift = { x: -svgCanvasRect.left, y: -svgCanvasRect.top };
 
-        arrows.push({ key:  state.name + ',' + statement.condition,
-                      from: this.shiftCoord(shortestArrow.from, shift),
-                      to:   this.shiftCoord(shortestArrow.to, shift) });
+        arrows.push({
+          key:  state.name + ',' + statement.condition,
+          from: this.shiftCoord(shortestArrow.from, shift),
+          to:   this.shiftCoord(shortestArrow.to, shift)
+        });
       }.bind(this));
     }.bind(this));
 
@@ -91,7 +93,15 @@ var StateSet = React.createClass({
     }.bind(this));
   },
 
+  layoutToRender: undefined,
+
+  layoutRendered: undefined,
+
   render: function() {
+    if (this.layoutToRender) {
+      return this.layoutToRender;
+    }
+
     var stateNodes = this.makeStateNodes();
     var arrows = _.map(this.state.arrows, function(arrow) {
       return (
@@ -99,7 +109,7 @@ var StateSet = React.createClass({
       );
     });
 
-    return (
+    this.layoutRendered = (
       <div className="state-set">
         <div className="combined-canvas">
           <div className="html-canvas">
@@ -120,6 +130,8 @@ var StateSet = React.createClass({
         </div>
       </div>
     );
+
+    return this.layoutRendered;
   },
 
   componentDidMount: function() {
@@ -143,6 +155,139 @@ var StateSet = React.createClass({
 
   componentDidUpdate: function() {
     this.updateArrows();
+
+    if (this.annealing) {
+      this.annealInner();
+    }
+  },
+
+  annealing: false,
+
+  prevEnergy: Math.POSITIVE_INFINITY,
+
+  prevLayout: undefined,
+
+  curTolerance: 1000,
+
+  anneal: function() {
+    this.annealing = true;
+    this.annealInner();
+  },
+
+  annealInner: function() {
+    var graph = this.getGraph();
+    var energy = this.calcEnergy(graph);
+    if (energy > this.prevEnergy + this.curTolerance) {
+      this.revertLayout();
+    }
+    else {
+      this.saveLayout();
+      this.renderNext();
+    }
+  },
+
+
+
+  getGraph: function() {
+    var nodes = {};
+    _.forEach(this.props.states, function(state) {
+      var elem = React.findDOMNode(state.name);
+      var rect = elem.getBoundingClientRect();
+      nodes[state.name] = rect;
+    });
+
+    return {
+      nodes: nodes
+    };
+  },
+
+  calcEnergy: function(graph) {
+    var nodeEnergies = _.map(graph.nodes, function(one) {
+      _.reduce(graph.nodes, function(acc, two) {
+        if (one === two) {
+          return acc;
+        }
+        else {
+          return acc + this.calcOverlapArea(one, two);
+        }
+      }, 0);
+    });
+
+    return _.reduce(nodeEnergies, function(acc, energy) {
+      return acc + energy;
+    }, 0);
+  },
+
+  calcOverlapArea: function(one, two) {
+    var xOrdered = one.left < two.left ? [one, two] : [two, one];
+    var xOverlap = this.calcOverlapRange(
+      [ xOrdered[0].left, xOrdered[0].right ],
+      [ xOrdered[1].left, xOrdered[1].right ]);
+
+    var yOrdered = one.top < two.top ? [one, two] : [two, one];
+    var yOverlap = this.calcOverlapRange(
+      [ yOrdered[0].top, yOrdered[0].bottom ],
+      [ yOrdered[1].top, yOrdered[1].bottom ]);
+
+    return xOverlap * yOverlap;
+  },
+
+  calcOverlapRange: function(first, second) {
+    assert(first[0] < second[0]);
+
+    if (first[1] <= second[0]) {
+      return 0;
+    }
+    else if (first[1] >= second[1]) {
+      return second[1] - second[0];
+    }
+    else {
+      return second[0] - first[1];
+    }
+  },
+
+  calcEvolutions: function(graph) {
+    var forces = {};
+    _.forEach(graph.nodes, function(self) {
+      _.forEach(graph.nodes, function(other) {
+        if (self === other) {
+          return;
+        }
+
+        var repulsion = this.calcRepulsion(self, other);
+
+        var force = forces[self.name];
+        if (!force) {
+          force = { x: 0, y: 0 };
+          forces[self.name] = force;
+        }
+
+        force.x += repulsion.x;
+        force.y += repulsion.y;
+      }.bind(this));
+    }.bind(this));
+
+    return {
+      forces: forces
+    };
+  },
+
+  calcRepulsion: function(self, other) {
+    var distance = this.calcDistance( this.calcCenter(self), this.calcCenter(other) );
+    var angle = Math.atan( (other.y - self.y) / (other.x - self.x) );
+    var magnitude = 100 * Math.sqrt(distance);
+    return { x: magnitude * Math.sin(angle), y: magnitude * Math.cos(angle) };
+  },
+
+  calcCenter: function(rect) {
+    return {
+      x: (rect.right - rect.left) / 2,
+      y: (rect.bottom - rect.top) / 2
+    };
+  },
+
+  calcDistance: function(one, two) {
+    return (one.x - two.x) * (one.x - two.x) + (one.y - two.y) * (one.y - two.y);
   }
 
 });

@@ -12,8 +12,6 @@ var Routed = React.createClass({
 
   render: function() {
     var routeName = window.location.hash.substr(1);
-    console.log('route name:', routeName);
-    console.log('routes:', this.props.routes);
 
     var content;
     _.forEach(this.props.routes, function(curContent, curName) {
