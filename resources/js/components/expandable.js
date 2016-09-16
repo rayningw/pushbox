@@ -1,3 +1,5 @@
+const React = require('react');
+
 var Expandable = React.createClass({
 
   getInitialState: function() {

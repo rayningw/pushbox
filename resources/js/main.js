@@ -1,5 +1,6 @@
 'use strict';
 
+const React = require('react');
 var config = require('./config/config');
 var App = require('./components/app');
 
@@ -16,4 +17,3 @@ if (window.addEventListener) {
 else {
   window.attachEvent('onload', run);
 }
-

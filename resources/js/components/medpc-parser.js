@@ -1,3 +1,4 @@
+const React = require('react');
 var assert = require('assert');
 var _ = require('lodash');
 

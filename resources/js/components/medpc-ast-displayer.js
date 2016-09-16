@@ -1,3 +1,4 @@
+const React = require('react');
 var _ = require('lodash');
 
 var MedPcAstDisplayer = React.createClass({

@@ -1,3 +1,5 @@
+const React = require('react');
+
 var Arrow = React.createClass({
 
   render: function() {

@@ -1,3 +1,5 @@
+const React = require('react');
+
 var Sidebarred = React.createClass({
 
   render: function() {
