@@ -10,8 +10,11 @@
   "main": "app.js",
   "devDependencies": {
     "browserify": "^11.0.1",
+    "eslint": "^3.5.0",
+    "eslint-plugin-react": "^6.2.2",
     "gulp": "^3.9.0",
     "gulp-sass": "^2.0.4",
+    "node-sass": "^3.9.3",
     "reactify": "^1.1.1",
     "vinyl-source-stream": "^1.1.0",
     "watchify": "^3.3.1"
