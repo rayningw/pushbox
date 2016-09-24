@@ -267,10 +267,10 @@ var StateSet = React.createClass({
         const selfName = self.name;
         const otherName = overlap.overlapWith;
 
-        const selfPosition = self.position;
-        const otherPosition = graph.nodes[otherName].position;
+        const selfCenter = this.calcCenter(self.rect);
+        const otherCenter = this.calcCenter(graph.nodes[otherName].rect);
 
-        const repulsion = this.calcRepulsionWithOther(selfPosition, otherPosition);
+        const repulsion = this.calcRepulsionWithOther(selfCenter, otherCenter);
 
         forces[selfName] = this.combineForces(
           forces[selfName] || { x: 0, y: 0 }, repulsion.forceOnSelf);
@@ -302,6 +302,14 @@ var StateSet = React.createClass({
     return {
       x: one.x + two.x,
       y: one.y + two.y
+    };
+  },
+
+  // Calculates the center of a rectangle
+  calcCenter: function(rect) {
+    return {
+      x: rect.left + (rect.right - rect.left) / 2,
+      y: rect.top + (rect.bottom - rect.top) / 2
     };
   },
 
@@ -434,50 +442,6 @@ var StateSet = React.createClass({
       throw new Error("Unexpected arrangement to calculate overlap range");
     }
   },
-
-  calcEvolutions: function(graph) {
-    var forces = {};
-    _.forEach(graph.nodes, function(self) {
-      _.forEach(graph.nodes, function(other) {
-        if (self === other) {
-          return;
-        }
-
-        var repulsion = this.calcRepulsion(self, other);
-
-        var force = forces[self.name];
-        if (!force) {
-          force = { x: 0, y: 0 };
-          forces[self.name] = force;
-        }
-
-        force.x += repulsion.x;
-        force.y += repulsion.y;
-      }.bind(this));
-    }.bind(this));
-
-    return {
-      forces: forces
-    };
-  },
-
-  calcRepulsion: function(self, other) {
-    var distance = this.calcDistance( this.calcCenter(self), this.calcCenter(other) );
-    var angle = Math.atan( (other.y - self.y) / (other.x - self.x) );
-    var magnitude = 100 * Math.sqrt(distance);
-    return { x: magnitude * Math.sin(angle), y: magnitude * Math.cos(angle) };
-  },
-
-  calcCenter: function(rect) {
-    return {
-      x: (rect.right - rect.left) / 2,
-      y: (rect.bottom - rect.top) / 2
-    };
-  },
-
-  calcDistance: function(one, two) {
-    return (one.x - two.x) * (one.x - two.x) + (one.y - two.y) * (one.y - two.y);
-  }
 
 });
 
