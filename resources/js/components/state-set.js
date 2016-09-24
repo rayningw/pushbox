@@ -1,4 +1,5 @@
-const React = require('react');
+const React = require('react'),
+  PropTypes = React.PropTypes;
 var assert = require('assert');
 var _ = require('lodash');
 
@@ -7,6 +8,21 @@ var StateNode = require('./state-node');
 var Arrow = require('./arrow');
 
 var StateSet = React.createClass({
+
+  propTypes: {
+    states: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      statements: PropTypes.arrayOf(PropTypes.shape({
+        condition: PropTypes.string.isRequired,
+        transition: PropTypes.string.isRequired
+      }))
+    })).isRequired,
+    positions: PropTypes.objectOf(PropTypes.shape({
+      x: PropTypes.number.isRequired,
+      y: PropTypes.number.isRequired
+    })).isRequired,
+    onPositionsUpdated: PropTypes.func.isRequired
+  },
 
   getInitialState: function() {
     return {
@@ -93,15 +109,7 @@ var StateSet = React.createClass({
     }.bind(this));
   },
 
-  layoutToRender: undefined,
-
-  layoutRendered: undefined,
-
   render: function() {
-    if (this.layoutToRender) {
-      return this.layoutToRender;
-    }
-
     var stateNodes = this.makeStateNodes();
     var arrows = _.map(this.state.arrows, function(arrow) {
       return (
@@ -109,8 +117,10 @@ var StateSet = React.createClass({
       );
     });
 
-    this.layoutRendered = (
+    return (
       <div className="state-set">
+        <button onClick={this.autoAnneal}>Perform Annealing</button>
+        <button onClick={this.manualAnneal}>Manually Step Annealing</button>
         <div className="combined-canvas">
           <div className="html-canvas">
             {stateNodes}
@@ -130,8 +140,6 @@ var StateSet = React.createClass({
         </div>
       </div>
     );
-
-    return this.layoutRendered;
   },
 
   componentDidMount: function() {
@@ -156,44 +164,201 @@ var StateSet = React.createClass({
   componentDidUpdate: function() {
     this.updateArrows();
 
-    if (this.annealing) {
-      this.annealInner();
+    if (this.annealingInfo && this.annealingInfo.doNextStep) {
+      this.doAnnealStep();
     }
   },
 
-  annealing: false,
+  annealingInfo: null,
 
-  prevEnergy: Math.POSITIVE_INFINITY,
-
-  prevLayout: undefined,
-
-  curTolerance: 1000,
-
-  anneal: function() {
-    this.annealing = true;
-    this.annealInner();
+  // Sets up the simulated annealing structures so annealing steps can be done
+  setupAnnealing: function() {
+    console.log("Setting up annealing");
+    this.annealingInfo = {
+      // Whether we want to do the next step (set to false for manual stepping)
+      doNextStep: false,
+      // Latest graph which we have accepted
+      acceptedGraph: null,
+      // Energy of the accepted graph
+      acceptedEnergy: Number.POSITIVE_INFINITY,
+      // Positions of we are going to render next to test it out
+      positionsToTest: null,
+      // Current tolerance for higher energies
+      curTolerance: 10000
+    };
   },
 
-  annealInner: function() {
-    var graph = this.getGraph();
-    var energy = this.calcEnergy(graph);
-    if (energy > this.prevEnergy + this.curTolerance) {
-      this.revertLayout();
+  // Tears down the simualated annealing structures
+  teardownAnnealing: function() {
+    console.log("Tearing down annealing");
+    this.annealingInfo = null;
+    this.forceUpdate();
+  },
+
+  // Perform simulated annealing by continually performing annealing steps
+  autoAnneal: function() {
+    console.log("Auto annealing");
+    this.setupAnnealing();
+    this.annealingInfo.doNextStep = true;
+    this.doAnnealStep();
+  },
+
+  // Manually step through simualated annealing steps
+  manualAnneal: function() {
+    console.log("Manual annealing");
+    if (!this.annealingInfo) {
+      this.setupAnnealing();
     }
-    else {
-      this.saveLayout();
-      this.renderNext();
+    this.doAnnealStep();
+  },
+
+  doAnnealStep: function() {
+    console.log("Doing annealing step")
+    // If we have stabilised then end annealing
+    if (this.annealingInfo.curTolerance <= 0) {
+      console.log("Reached zero tolerance")
+      this.teardownAnnealing();
+      return;
+    }
+
+    // Calculate details about rendered graph, i.e. what we are testing
+    const graphUnderTest = this.getRenderedGraph();
+    this.decorateGraphWithOverlaps(graphUnderTest);
+    const energyUnderTest = this.calcGraphEnergy(graphUnderTest);
+    console.log("Energy of graph under test: " + energyUnderTest);
+
+    // If the rendered layout has lower energy then accept it so that the next
+    // nudging will use it.
+    if (energyUnderTest < this.annealingInfo.acceptedEnergy + this.annealingInfo.curTolerance) {
+      console.log("Accepted graph under test");
+      this.annealingInfo.acceptedGraph = graphUnderTest;
+      this.annealingInfo.acceptedEnergy = energyUnderTest;
+
+    // Otherwise the next nudging will continue to use the previously accepted graph
+    } else {
+      console.log("Rejected graph under test");
+    }
+
+    if (this.annealingInfo.acceptedEnergy <= 0) {
+      console.log("Reached zero energy");
+      this.teardownAnnealing();
+      return;
+    }
+
+    // Nudge graph around to get the layout which we are going to render next to test it
+    this.nudgeGraph(this.annealingInfo.acceptedGraph);
+
+    // Call out to set positions from layoutToTest
+    this.props.onPositionsUpdated(this.annealingInfo.positionsToTest);
+
+    // Decrement the energy tolerance for the next step
+    this.annealingInfo.curTolerance -= 100;
+
+    // Force a render to perform the next step in case positions did not change
+    this.forceUpdate();
+  },
+
+  // Mutates the graph by nudging the node positions
+  nudgeGraph: function(graph) {
+    // Calculate the combined force on each node
+    let forces = {};
+    _.forEach(graph.nodes, self => {
+      self.overlaps.forEach(overlap => {
+        const selfName = self.name;
+        const otherName = overlap.overlapWith;
+
+        const selfPosition = self.position;
+        const otherPosition = graph.nodes[otherName].position;
+
+        const repulsion = this.calcRepulsionWithOther(selfPosition, otherPosition);
+
+        forces[selfName] = this.combineForces(
+          forces[selfName] || { x: 0, y: 0 }, repulsion.forceOnSelf);
+        forces[otherName] = this.combineForces(
+          forces[otherName] || { x: 0, y: 0 }, repulsion.forceOnOther);
+      });
+    });
+
+    // Apply the force on each node
+    this.annealingInfo.positionsToTest = {};
+    _.forEach(graph.nodes, node => {
+      const force = forces[node.name];
+      if (force) {
+        this.annealingInfo.positionsToTest[node.name] = this.applyForce(force, node.position);
+      } else {
+        this.annealingInfo.positionsToTest[node.name] = node.position;
+      }
+    });
+  },
+
+  applyForce: function(force, position) {
+    return {
+      x: Math.max(0, position.x + force.x),
+      y: Math.max(0, position.y + force.y)
+    };
+  },
+
+  combineForces: function(one, two) {
+    return {
+      x: one.x + two.x,
+      y: one.y + two.y
+    };
+  },
+
+  calcRepulsionWithOther: function(selfPosition, otherPosition) {
+    const angle = this.calcAngle(selfPosition, otherPosition);
+    const oppositeAngle = angle + Math.PI;
+    return {
+      forceOnSelf: this.calcVector(10, oppositeAngle),
+      forceOnOther: this.calcVector(10, angle)
+    };
+  },
+
+  calcAngle: function(one, two) {
+    const quadrant = this.getQuadrant(two, one);
+    if (quadrant == 1) {
+      return Math.atan((two.y - one.y) / (two.x - one.x));
+    } else if (quadrant == 2) {
+      return Math.PI + Math.atan((two.y - one.y) / (two.x - one.x));
+    } else if (quadrant == 3) {
+      return Math.PI + Math.atan((two.y - one.y) / (two.x - one.x));
+    } else if (quadrant == 4) {
+      return Math.atan((two.y - one.y) / (two.x - one.x));
     }
   },
 
+  getQuadrant: function(position, origin) {
+    if (position.x > origin.x && position.y >= origin.y) {
+      return 1;
+    } else if (position.x <= origin.x && position.y > origin.y) {
+      return 2;
+    } else if (position.x < origin.x && position.y <= origin.y) {
+      return 3;
+    } else if (position.x >= origin.x && position.y < origin.y) {
+      return 4;
+    } else {
+      throw new Error("Unknown quadrant for position: " + JSON.stringify(position) +
+          " against origin: " + JSON.stringify(origin));
+    }
+  },
 
+  calcVector: function(magnitude, angle) {
+    return {
+      x: magnitude * Math.cos(angle),
+      y: magnitude * Math.sin(angle)
+    };
+  },
 
-  getGraph: function() {
-    var nodes = {};
-    _.forEach(this.props.states, function(state) {
-      var elem = React.findDOMNode(state.name);
-      var rect = elem.getBoundingClientRect();
-      nodes[state.name] = rect;
+  getRenderedGraph: function() {
+    let nodes = {};
+    this.props.states.forEach(state => {
+      const elem = React.findDOMNode(this.refs[state.name]);
+      const rect = elem.getBoundingClientRect();
+      nodes[state.name] = {
+        name: state.name,
+        rect: rect,
+        position: _.clone(this.props.positions[state.name])
+      };
     });
 
     return {
@@ -201,48 +366,72 @@ var StateSet = React.createClass({
     };
   },
 
-  calcEnergy: function(graph) {
-    var nodeEnergies = _.map(graph.nodes, function(one) {
-      _.reduce(graph.nodes, function(acc, two) {
-        if (one === two) {
-          return acc;
+  decorateGraphWithOverlaps: function(graph) {
+    _.forEach(graph.nodes, self => {
+      let overlaps = [];
+      _.forEach(graph.nodes, (other, otherName) => {
+        if (self === other) {
+          return;
         }
-        else {
-          return acc + this.calcOverlapArea(one, two);
+        const overlapArea = this.calcOverlapArea(self.rect, other.rect);
+        if (overlapArea > 0) {
+          overlaps.push({
+            overlapWith: otherName,
+            overlapArea: overlapArea
+          });
         }
-      }, 0);
+      });
+      self.overlaps = overlaps;
     });
+  },
 
-    return _.reduce(nodeEnergies, function(acc, energy) {
-      return acc + energy;
+  calcGraphEnergy: function(graph) {
+    return _.reduce(graph.nodes, (acc, node) => {
+      return acc + this.calcNodeEnergy(node);
     }, 0);
   },
 
+  calcNodeEnergy: function(node) {
+    return node.overlaps.reduce((acc, overlap) => {
+      return acc + overlap.overlapArea;
+    }, 0);
+  },
+
+  // Calculates the area of overlap between two rectangles
   calcOverlapArea: function(one, two) {
-    var xOrdered = one.left < two.left ? [one, two] : [two, one];
-    var xOverlap = this.calcOverlapRange(
-      [ xOrdered[0].left, xOrdered[0].right ],
-      [ xOrdered[1].left, xOrdered[1].right ]);
-
-    var yOrdered = one.top < two.top ? [one, two] : [two, one];
-    var yOverlap = this.calcOverlapRange(
-      [ yOrdered[0].top, yOrdered[0].bottom ],
-      [ yOrdered[1].top, yOrdered[1].bottom ]);
-
+    // Multiply the 1-dimensional overlaps to get the 2-dimensional overlap
+    const xOverlap = this.calcOverlapRange([ one.left, one.right ], [ two.left, two.right ]);
+    const yOverlap = this.calcOverlapRange([ one.top, one.bottom ], [ two.top, two.bottom ]);
     return xOverlap * yOverlap;
   },
 
-  calcOverlapRange: function(first, second) {
-    assert(first[0] < second[0]);
+  // Calculates the overlap between two ranges in a 1-dimensional plane
+  calcOverlapRange: function(one, two) {
+    // Find the "first" and "second" ranges wrt. to their first ordinate
+    // position in order to calculate overlap easily.
+    let first, second;
+    if (one[0] < two[0]) {
+      first = one;
+      second = two;
+    } else {
+      first = two;
+      second = one;
+    }
 
+    // First and second do not overlap
     if (first[1] <= second[0]) {
       return 0;
     }
+    // First completely covers the second
     else if (first[1] >= second[1]) {
       return second[1] - second[0];
     }
+    // First overlaps partly with the second
+    else if (first[1] <= second[1]) {
+      return first[1] - second[0];
+    }
     else {
-      return second[0] - first[1];
+      throw new Error("Unexpected arrangement to calculate overlap range");
     }
   },
 
