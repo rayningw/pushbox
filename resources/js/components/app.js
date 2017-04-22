@@ -14,7 +14,7 @@ var App = React.createClass({
     var program = this.loadProgram();
 
     return {
-      title: 'Leverbox',
+      title: 'Pushbox',
       name: program.name,
       stateSets: program.stateSets,
       positions: program.positions
@@ -109,7 +109,7 @@ var App = React.createClass({
       <div className="container">
         <div className="row">
           <div className="col-md-12">
-            <h1>Leverbox</h1>
+            <h1>Pushbox</h1>
           </div>
         </div>
         <Routed routes={{
@@ -144,7 +144,7 @@ var App = React.createClass({
     );
 
     return (
-      <Sidebarred brand="Leverbox"
+      <Sidebarred brand="Pushbox"
                   sidebarContent={sidebarContent}
                   pageContent={pageContent} />
     );

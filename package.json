@@ -6,7 +6,7 @@
     "react": "^15.3.2",
     "react-dom": "^15.3.2"
   },
-  "name": "leverbox",
+  "name": "pushbox",
   "version": "0.0.1",
   "description": "Behavioural experimental research app",
   "main": "app.js",
