@@ -18,7 +18,7 @@
     "tests"
   ],
   "dependencies": {
-    "react": "~0.13.3"
+    "react": "^15.3.2"
   },
   "devDependencies": {
     "bootstrap-sass-official": "~3.3.5"

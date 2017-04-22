@@ -1,5 +1,6 @@
 const React = require('react'),
   PropTypes = React.PropTypes;
+const ReactDOM = require('react-dom');
 var assert = require('assert');
 var _ = require('lodash');
 
@@ -49,7 +50,7 @@ var StateSet = React.createClass({
 
         var toCandidates = toNode.getStateConnectionPoints();
 
-        var svgCanvasRect = React.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
+        var svgCanvasRect = ReactDOM.findDOMNode(this.refs.svgCanvas).getBoundingClientRect();
         var shortestArrow = this.calcShortestArrow(fromCandidates, toCandidates);
         var shift = { x: -svgCanvasRect.left, y: -svgCanvasRect.top };
 
@@ -145,13 +146,13 @@ var StateSet = React.createClass({
   componentDidMount: function() {
     // Set attributes unsupported by React
     // https://github.com/facebook/react/issues/140
-    var markerCircle = this.refs.markerCircle.getDOMNode();
+    var markerCircle = ReactDOM.findDOMNode(this.refs.markerCircle);
     markerCircle.setAttribute('markerWidth', '8');
     markerCircle.setAttribute('markerHeight', '8');
     markerCircle.setAttribute('refX', '5');
     markerCircle.setAttribute('refY', '5');
 
-    var markerArrow = this.refs.markerArrow.getDOMNode();
+    var markerArrow = ReactDOM.findDOMNode(this.refs.markerArrow);
     markerArrow.setAttribute('markerWidth', '13');
     markerArrow.setAttribute('markerHeight', '13');
     markerArrow.setAttribute('refX', '2');
@@ -360,7 +361,7 @@ var StateSet = React.createClass({
   getRenderedGraph: function() {
     let nodes = {};
     this.props.states.forEach(state => {
-      const elem = React.findDOMNode(this.refs[state.name]);
+      const elem = ReactDOM.findDOMNode(this.refs[state.name]);
       const rect = elem.getBoundingClientRect();
       nodes[state.name] = {
         name: state.name,

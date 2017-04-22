@@ -1,4 +1,5 @@
 const React = require('react');
+const ReactDOM = require('react-dom');
 var _ = require('lodash');
 
 var StateNode = React.createClass({
@@ -19,7 +20,7 @@ var StateNode = React.createClass({
        _.chain(this.props.statements)
         .indexBy('condition')
         .mapValues(function(statement) {
-          var rect = React.findDOMNode(this.refs[statement.condition]).getBoundingClientRect();
+          var rect = ReactDOM.findDOMNode(this.refs[statement.condition]).getBoundingClientRect();
           var halfwayY = (rect.top + rect.bottom) / 2;
           return [
             { x: rect.left,  y: halfwayY },
@@ -30,8 +31,8 @@ var StateNode = React.createClass({
   },
 
   updateStateConnectionPoints: function() {
-    var nameRect = this.refs.name.getDOMNode().getBoundingClientRect();
-    var entireRect = this.getDOMNode().getBoundingClientRect();
+    var nameRect = ReactDOM.findDOMNode(this.refs.name).getBoundingClientRect();
+    var entireRect = ReactDOM.findDOMNode(this.refs.self).getBoundingClientRect();
 
     var nameHalfwayY = (nameRect.top + nameRect.bottom) / 2;
     var entireHalfwayX = (entireRect.left + entireRect.right) / 2;
@@ -71,7 +72,7 @@ var StateNode = React.createClass({
       );
     });
     return (
-      <div className="state-node">
+      <div className="state-node" ref="self">
         <div ref="name" className="name">{this.props.name}</div>
         <table className="table statements">
           <thead>

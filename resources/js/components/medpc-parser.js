@@ -1,4 +1,5 @@
 const React = require('react');
+const ReactDOM = require('react-dom');
 var assert = require('assert');
 var _ = require('lodash');
 
@@ -269,7 +270,7 @@ var MedPcParser = React.createClass({
 
   handleSubmit: function(event) {
     event.preventDefault();
-    var result = this.parseProgram(this.refs.text.getDOMNode().value);
+    var result = this.parseProgram(ReactDOM.findDOMNode(this.refs.text).value);
     if (result.rest.length > 0) {
       console.log('Could not parse:', result.rest);
     }
